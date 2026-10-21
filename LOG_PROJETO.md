@@ -1,34 +1,50 @@
-# Log do Projeto - Back-end (Marketplace Educacional)
+# Log do Projeto - Back-end Orienta (P4 - Monólito Modular)
 
-## Tecnologias e Arquitetura
-* **Linguagem:** Java
-* **Framework:** Spring Boot
-* **Banco de Dados:** PostgreSQL (Hospedado no Supabase)
-* **ORM:** Spring Data JPA / Hibernate
-* **Ferramentas:** Lombok (Redução de boilerplate)
-* **Padrão de Arquitetura:** API RESTful dividida em Camadas (Model, Repository, Service, Controller)
+## Tecnologias e Arquitetura (P4)
+* **Linguagem:** Java 17 (LTS)
+* **Framework:** Spring Boot 3.4.5
+* **Banco de Dados:** PostgreSQL (Local via Docker Compose / Supabase)
+* **Migrations:** Flyway Community (`ddl-auto=validate`)
+* **Serviço de E-mail:** Spring Mail com Mailpit Local (Custo Zero)
+* **Documentação Viva:** SpringDoc OpenAPI 3.0 / Swagger UI (`/api/v1/swagger-ui.html`)
+* **Padrão de Arquitetura:** Monólito Modular em Camadas (Model, Repository, Service, Controller, DTO)
 
-## Status Atual (Sprint 1 - Autenticação Básica)
-O núcleo do sistema de usuários e a conexão com o banco de dados via "Code-First" foram estabelecidos. O banco gera as tabelas automaticamente com base no código Java (`ddl-auto=update`).
+---
 
-### Funcionalidades Implementadas
-1. **Entidade Usuario (Model):**
-   - Tabela `tb_usuarios` criada no Supabase.
-   - Colunas: `id` (PK auto-gerado), `nome`, `email` (Unique), `senha`, `tipo` (Aluno/Professor).
-   
-2. **Acesso a Dados (Repository):**
-   - Criação do `UsuarioRepository`.
-   - Implementação da Query Method `findByEmail` para buscas personalizadas.
+## Histórico de Fases do Plano de Migração
 
-3. **Regras de Negócio (Service):**
-   - **Cadastro:** Verifica se o email já existe. Retorna erro ou salva no banco.
-   - **Login:** Verifica a existência do email e compara a senha em etapas (Guard Clauses).
+### Fase 0 — Preservar e Preparar ✅ [CONCLUÍDA]
+* **Objetivo:** Estabelecer linha de base segura sem perda do histórico.
+* **Resolução:** Criação dos novos repositórios dedicados do 4º Período (`projeto-ads-p4-api` e `projeto-ads-p4-mobile`), recebendo a cópia fiel do legado P3 preservada.
 
-4. **Portas de Entrada (Controller):**
-   - Rota POST: `/api/usuarios/cadastro` (Recebe JSON e registra usuário).
-   - Rota POST: `/api/usuarios/login` (Recebe JSON e valida autenticação).
+### Fase 1 — Tornar a Execução Reproduzível ✅ [CONCLUÍDA]
+* **Objetivo:** Garantir inicialização 100% local a custo zero e instruções claras.
+* **Entregas Realizadas:**
+  1. Configuração do `application.properties` desacoplada por variáveis de ambiente (`PORT`, `DB_URL`, `DB_USER`, `MAIL_HOST`).
+  2. Criação do `.env.example` livre de credenciais sensíveis.
+  3. Configuração do Flyway com migration `V1__baseline_schema.sql` cobrindo todas as 6 tabelas legadas.
+  4. Configuração de `ddl-auto=validate` para que Flyway assuma o controle do schema.
+  5. Criação do `docker-compose.yml` para PostgreSQL e Mailpit locais.
+  6. Implementação do endpoint de Health Check `GET /api/health` retornando status UP em JSON.
+  7. Validação do Maven Wrapper (`./mvnw`).
+  8. **Status:** Pronto para o 1º Commit oficial de evolução do P4.
 
-## Próximos Passos (Back-end)
-* [ ] Integrar a chamada da API com o Front-end (React Native).
-* [ ] (Futuro) Melhorar o tratamento de exceções (Transformar o erro 500 em um 400 amigável).
-* [ ] (Futuro) Implementar criptografia de senha (Bcrypt) e tokens de segurança (JWT).
+### Fase 2 — Criar Base de Qualidade e Segurança ✅ [CONCLUÍDA]
+* **Objetivo:** Blindar contratos, padronizar erros e sanitizar dados sensíveis.
+* **Entregas Realizadas:**
+  1. Criação do `GlobalExceptionHandler` interceptando `MethodArgumentNotValidException`, `RegraNegocioException` e `RecursoNaoEncontradoException`.
+  2. Implementação do `ErrorResponseDTO` e `FieldErrorDTO` para formato uniforme de erro em toda a API.
+  3. Adição da dependência `spring-boot-starter-validation` no `pom.xml`.
+  4. Introdução de DTOs estritos: `UsuarioCadastroRequestDTO` e `UsuarioLoginRequestDTO` com Jakarta Bean Validation (`@NotBlank`, `@Email`, `@Size`).
+  5. Criação do `UsuarioResponseDTO` com garantia absoluta de **não exposição de senha** em respostas JSON.
+  6. Configuração de CORS por ambiente (`CorsConfig.java`) via `cors.allowed-origins`.
+  7. Configuração de logs com mascaramento de parâmetros SQL no `application.properties`.
+  8. Configuração de `Clock` injetável (`AppConfig.java`) para testes determinísticos de tempo.
+  9. Criação de bateria de testes unitários (`GlobalExceptionHandlerTest.java`) validando HTTP 422, 404 e segurança de senhas.
+
+---
+
+## Próximos Passos (Fase 3 & Fase 4)
+* [ ] Fase 3: Migrar autenticação e autorização (Spring Security 6, BCryptPasswordEncoder e RBAC ALUNO/PROFESSOR/ADMIN).
+* [ ] Fase 4: Padronizar contrato mobile/API com prefixo `/api/v1` e documentação OpenAPI viva.
+* [ ] Fase 5: Evoluir modelo de dados e regras de antecedência de 24h com Flyway.
