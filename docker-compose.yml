@@ -1,0 +1,38 @@
+# ====================================================================
+# ORIENTA - EVOLUÇÃO DO PRODUTO (PERÍODO 4)
+# Infraestrutura Local a Custo Zero (DT-001, DT-006, DT-007)
+# Serviços: PostgreSQL 16 (Banco de Dados) + Mailpit (Captura de E-mails)
+# ====================================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orienta-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-orientadb}
+      POSTGRES_USER: ${DB_USER:-orienta_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-orienta_secret}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-orienta_user} -d ${DB_NAME:-orientadb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: orienta-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAIL_SMTP_PORT:-1025}:1025"   # Porta SMTP local (Spring Mail)
+      - "${MAIL_WEB_PORT:-8025}:8025"    # Interface Web no navegador para ver os e-mails
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: "" # Armazena em memória para testes limpos
+
+volumes:
+  postgres_data:
+    name: orienta_postgres_data
