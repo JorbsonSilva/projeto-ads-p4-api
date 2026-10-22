@@ -13,7 +13,7 @@ import java.time.LocalTime;
 
 /**
  * DTO de solicitação de agendamento de aula pelo aluno.
- * Rastreabilidade: Fase 4 - f4-t6
+ * Rastreabilidade: Fase 4 (DTOs) & Fase 5 (Domínio e Vínculo de Disciplina - f5-t3, f5-t4)
  */
 @Data
 @Builder
@@ -29,6 +29,9 @@ public class AgendamentoRequestDTO {
     @NotNull(message = "O ID do professor é obrigatório")
     @Schema(description = "Identificador único do professor", example = "2")
     private Long idProfessor;
+
+    @Schema(description = "Identificador opcional da matéria / saber lecionado", example = "1")
+    private Long idDisciplina;
 
     @NotNull(message = "A data da aula é obrigatória")
     @FutureOrPresent(message = "A data da aula deve ser hoje ou uma data futura")

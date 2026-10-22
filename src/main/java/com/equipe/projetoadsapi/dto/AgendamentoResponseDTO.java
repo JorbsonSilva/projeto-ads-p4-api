@@ -8,12 +8,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
  * DTO de retorno para agendamento de aula.
- * Rastreabilidade: Fase 4 - f4-t6
+ * Rastreabilidade: Fase 4 & Fase 5 - f5-t3, f5-t4, f5-t5, f5-t6
  */
 @Data
 @Builder
@@ -43,6 +45,12 @@ public class AgendamentoResponseDTO {
     @Schema(description = "E-mail do professor", example = "helena@orienta.com.br")
     private String professorEmail;
 
+    @Schema(description = "ID da matéria vinculada")
+    private Long saberId;
+
+    @Schema(description = "Nome da matéria vinculada", example = "Estrutura de Dados")
+    private String saberNome;
+
     @Schema(description = "Data agendada (YYYY-MM-DD)", example = "2026-11-15")
     private LocalDate data;
 
@@ -52,6 +60,9 @@ public class AgendamentoResponseDTO {
     @Schema(description = "Status atual do agendamento", example = "CONFIRMADO")
     private StatusAgendamento status;
 
+    @Schema(description = "Valor financeiro aplicado e congelado no agendamento (R$)", example = "85.00")
+    private BigDecimal valorAplicado;
+
     @Schema(description = "Justificativa de cancelamento ou recusa (se aplicável)")
     private String justificativaCancelamento;
 
@@ -60,6 +71,9 @@ public class AgendamentoResponseDTO {
 
     @Schema(description = "Assunto ou tópico a ser trabalhado", example = "Algoritmos e Estruturas de Dados")
     private String assunto;
+
+    @Schema(description = "Timestamp de criação do agendamento")
+    private Instant criadoEm;
 
     public static AgendamentoResponseDTO fromEntity(Agendamento agendamento) {
         if (agendamento == null) return null;
@@ -72,12 +86,16 @@ public class AgendamentoResponseDTO {
                 .professorId(agendamento.getProfessor() != null ? agendamento.getProfessor().getId() : null)
                 .professorNome(agendamento.getProfessor() != null ? agendamento.getProfessor().getNome() : null)
                 .professorEmail(agendamento.getProfessor() != null ? agendamento.getProfessor().getEmail() : null)
+                .saberId(agendamento.getSaber() != null ? agendamento.getSaber().getId() : null)
+                .saberNome(agendamento.getSaber() != null ? agendamento.getSaber().getNome() : null)
                 .data(agendamento.getData())
                 .hora(agendamento.getHora())
                 .status(agendamento.getStatus())
+                .valorAplicado(agendamento.getValorAplicado() != null ? agendamento.getValorAplicado() : BigDecimal.ZERO)
                 .justificativaCancelamento(agendamento.getJustificativaCancelamento())
                 .modalidade(agendamento.getModalidade() != null ? agendamento.getModalidade() : "PRESENCIAL")
                 .assunto(agendamento.getAssunto() != null ? agendamento.getAssunto() : "Mentoria Acadêmica")
+                .criadoEm(agendamento.getCriadoEm() != null ? agendamento.getCriadoEm() : Instant.now())
                 .build();
     }
 }
