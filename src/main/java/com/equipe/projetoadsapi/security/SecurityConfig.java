@@ -17,7 +17,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Configuração Principal do Spring Security 6.
- * Rastreabilidade: Fase 3 (Auth & RBAC) - f3-t1
+ * Rastreabilidade: Fase 3 (Auth & RBAC) & Fase 4 (Contrato v1 e Swagger UI)
  * Arquitetura Stateless com JWT, CORS unificado, fail-closed e proteção de endpoints.
  */
 @Configuration
@@ -47,27 +47,33 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
-                // Endpoints Públicos de Autenticação e Onboarding
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/usuarios/login", "/api/usuarios/cadastro", "/api/usuarios/verificar-email").permitAll()
-                
-                // Health Check e Monitoramento
-                .requestMatchers("/api/health/**").permitAll()
-                
-                // Documentação OpenAPI / Swagger
+                // Documentação OpenAPI / Swagger (rotas v1 e raiz)
                 .requestMatchers(
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
-                    "/swagger-ui.html"
+                    "/swagger-ui.html",
+                    "/api/v1/api-docs/**",
+                    "/api/v1/swagger-ui.html"
+                ).permitAll()
+
+                // Endpoints Públicos de Autenticação e Onboarding (v1 e legado)
+                .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST,
+                    "/api/v1/usuarios/login", "/api/usuarios/login",
+                    "/api/v1/usuarios/cadastro", "/api/usuarios/cadastro",
+                    "/api/v1/usuarios/verificar-email", "/api/usuarios/verificar-email"
                 ).permitAll()
                 
+                // Health Check e Diagnóstico
+                .requestMatchers("/api/v1/health/**", "/api/health/**").permitAll()
+                
                 // Consulta pública de disciplinas/saberes
-                .requestMatchers(HttpMethod.GET, "/api/saberes/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/saberes/**", "/api/saberes/**").permitAll()
                 
                 // Endpoints Administrativos restritos a ADMIN
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/admin/**", "/api/admin/**").hasRole("ADMIN")
                 
-                // Demais rotas exigem autenticação
+                // Demais rotas exigem token JWT autenticado
                 .anyRequest().authenticated()
             );
 
