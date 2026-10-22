@@ -84,3 +84,19 @@
   5. **Concorrência Atômica Transacional (`f5-t9`):** Anotação `@Transactional` e verificação no banco contra choques de horário considerando apenas agendamentos ativos (`existsByProfessorAndDataAndHoraAndStatusNotIn`).
   6. **Separação de Recusa e Cancelamento (`f5-t10`):** Recusa exclusiva para o professor em status `PENDENTE`; Cancelamento para aluno/professor/admin em `PENDENTE` ou `CONFIRMADO`.
   7. **Massa de Dados de Demonstração Seed (`f5-t11`):** Migration `V4__seed_professores_e_aulas.sql` gerando 10 professores reais com fotos, saberes, aptidões com preço, alunos e 20 agendamentos com status variados.
+
+---
+
+### Fase 6 — Implementar Aula, Cronômetro e Avaliação ✅ [CONCLUÍDA]
+* **Objetivo:** Completar o ciclo da aula: início bilateral, cronometragem no servidor, consentimento mútuo e avaliação pós-aula (1 a 5 estrelas).
+* **Entregas Realizadas:**
+  1. **Migration V5 & Entidade SessaoAula (`f6-t1`):** Criação da tabela `tb_sessao_aula` com colunas `aluno_checkin`, `professor_checkin`, `inicio_efetivo`, `fim_efetivo`, `segundos_pausados`, `ultima_pausa_em`, `duracao_total_segundos` e status (`StatusSessao`).
+  2. **Início Bilateral da Aula (`f6-t2`):** Check-in independente de cada participante; o cronômetro oficial só dispara e o agendamento muda para `EM_ANDAMENTO` após a confirmação mútua de aluno e professor.
+  3. **Relógio do Servidor & Anti-Fraude (`f6-t3`):** Cálculo de segundos decorridos e pausas executado com precisão no servidor (`calcularSegundosDecorridos`), impossibilitando fraudes em relógios locais.
+  4. **Pausa e Retomada por Consentimento Mútuo (`f6-t4`):** Endpoint para pausar a aula em andamento, congelando o tempo oficial com carimbo de `ultima_pausa_em` e somando intervalos pausados na retomada.
+  5. **Tabela de Auditoria de Eventos de Aula (`f6-t5`):** Criação da tabela `tb_aula_eventos` e entidade `AulaEvento` registrando cada etapa do ciclo de vida ao vivo (`CHECKIN_ALUNO`, `CHECKIN_PROFESSOR`, `INICIO_AULA`, `PAUSA`, `RETOMADA`, `SOLICITACAO_FIM`, `CONFIRMACAO_FIM`).
+  6. **Finalização Bilateral & Estado AGUARDANDO_CONFIRMACAO (`f6-t6`):** O primeiro encerramento transita para `AGUARDANDO_CONFIRMACAO`; apenas após o aceite mútuo a aula atinge `REALIZADA` e a sessão `CONCLUIDA`.
+  7. **Módulo de Avaliação Pós-Aula & Migration V6 (`f6-t8`):** Criação da tabela `tb_avaliacoes` e entidade `Avaliacao`, com validação de nota de 1 a 5 estrelas, pontualidade, didática e comentário. Bloqueio estrito de avaliações antes do status `REALIZADA` e cálculo dinâmico da média de notas do usuário avaliado.
+  8. **Testes Unitários da Máquina de Estados (`f6-t9`):** Bateria de testes em `MaquinaEstadosAulaTest.java` cobrindo check-in bilateral, transições ilegais, pausas inválidas, fluxo de encerramento e bloqueio de intrusos.
+  9. **Endpoints do Controller (`AulaController.java`):** Métodos REST anotados com OpenAPI 3.0 e validação de posse de recurso (`ResourceOwnershipService`).
+
