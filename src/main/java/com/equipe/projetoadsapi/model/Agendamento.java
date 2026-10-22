@@ -2,16 +2,22 @@ package com.equipe.projetoadsapi.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+/**
+ * Entidade de Agendamento de Aulas do Orienta.
+ * Rastreabilidade: Fase 2 (Baseline), Fase 4 (Padronização com StatusAgendamento)
+ */
 @Entity
 @Table(name = "tb_agendamento")
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Agendamento {
@@ -20,11 +26,11 @@ public class Agendamento {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_aluno", nullable = false)
     private Usuario aluno;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_professor", nullable = false)
     private Usuario professor;
 
@@ -34,11 +40,17 @@ public class Agendamento {
     @Column(nullable = false)
     private LocalTime hora;
 
-    @Column(nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private StatusAgendamento status = StatusAgendamento.PENDENTE;
 
-    // Novo campo para armazenar o motivo do cancelamento
-    // Adicionei um tamanho de 500 caracteres para garantir que caibam textos maiores
     @Column(length = 500)
     private String justificativaCancelamento;
+
+    @Column(length = 50)
+    private String modalidade; // PRESENCIAL ou ONLINE
+
+    @Column(length = 255)
+    private String assunto;
 }
