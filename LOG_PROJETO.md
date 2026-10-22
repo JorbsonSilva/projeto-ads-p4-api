@@ -43,3 +43,19 @@
   9. Criação de bateria de testes unitários (`GlobalExceptionHandlerTest.java`) validando HTTP 422, 404 e segurança de senhas.
 
 ---
+
+### Fase 3 — Migrar Autenticação e Autorização ✅ [CONCLUÍDA]
+* **Objetivo:** Eliminar confiança cega em IDs enviados pelo cliente, introduzir hash criptográfico BCrypt e RBAC rigoroso (ALUNO, PROFESSOR, ADMIN).
+* **Entregas Realizadas:**
+  1. Configuração do Spring Security 6 com `SecurityFilterChain` stateless, CSRF desabilitado e CORS unificado (`SecurityConfig.java`).
+  2. Implementação do `BCryptPasswordEncoder` com cost factor 12 para hashing adaptativo seguro contra força bruta.
+  3. Mapeamento de papéis no sistema via enum `PapelUsuario` (ROLE_ALUNO, ROLE_PROFESSOR, ROLE_ADMIN) integrado ao `UserDetails`.
+  4. Criação da entidade e repositório `CodigoVerificacao` persistindo códigos no banco com expiração em 15 minutos (`f3-t9`).
+  5. Implementação de `RateLimitingService` em memória protegendo login (5 tentativas/15m) e reenvio de código (3 tentativas/1h).
+  6. Migration versionada `V2__auth_security_schema.sql` (Flyway) e `LegacyPasswordMigrationService` para upgrade automático de senhas legadas em texto puro.
+  7. Provedor de JWT (`JwtTokenProvider`) emitindo Access Token (24h) e Refresh Token (7 dias), com DTOs tipados e endpoint `POST /api/auth/login`.
+  8. Implementação de `TokenBlacklistService` em memória e endpoint `POST /api/auth/logout` para revogação instantânea de credenciais.
+  9. Validação do flag `email_verificado` antes de conceder acesso às rotas autenticadas do sistema.
+  10. Criação do `ResourceOwnershipService` para validação de posse do recurso (`validarPropriedadeUsuario`), eliminando vulnerabilidade de ID Spoofing.
+
+---
