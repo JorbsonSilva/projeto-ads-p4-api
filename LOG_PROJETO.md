@@ -60,6 +60,14 @@
 
 ---
 
-## Próximos Passos (Fase 4 & Fase 5)
-* [ ] Fase 4: Padronizar contrato mobile/API com prefixo `/api/v1` e documentação OpenAPI viva.
-* [ ] Fase 5: Evoluir modelo de dados e regras de antecedência de 24h com Flyway.
+### Fase 4 — Padronizar Contrato Mobile/API & OpenAPI 3.0 ✅ [CONCLUÍDA]
+* **Objetivo:** Unificar contratos em `/api/v1`, documentação viva OpenAPI 3.0/Swagger, DTOs de agendamento e sincronização com TypeScript do mobile.
+* **Entregas Realizadas:**
+  1. **Prefixo Global e Versionamento (`f4-t1`):** Adotado `/api/v1` em todos os Controllers (`/api/v1/agendamentos`, `/api/v1/usuarios`, `/api/v1/auth`, `/api/v1/health`, `/api/v1/saberes`), mantendo alias transitório para rotas legadas para zero impacto retroativo.
+  2. **Verbos e Status Semânticos (`f4-t2`):** `POST` -> 201 Created com header e body; `GET/PUT/PATCH` -> 200 OK; Validação -> 400 Bad Request; Autenticação -> 401; Autorização -> 403; Conflito -> 409; Regra de Negócio -> 422.
+  3. **Consolidação de Perfil (`f4-t3`):** Criado endpoint unificado `GET /api/v1/usuarios/{id}/perfil` (`PerfilCompletoDTO`) integrando dados cadastrais, saberes, aptidões e interesses numa só requisição; `PerfilController` marcado como `@Deprecated` mas operacional.
+  4. **Padronização de Rotas de Agendamento (`f4-t4`):** Migrado de `/agendamentos` desordenado para rotas semânticas: `POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/aluno/{id}`, `GET /api/v1/agendamentos/professor/{id}`, `PUT /{id}/aceitar`, `PUT /{id}/recusar`, `PUT /{id}/cancelar`, `PUT /{id}/remarcar`.
+  5. **SpringDoc OpenAPI 3.0 & Swagger UI (`f4-t5`):** Criada classe `OpenApiConfig.java` com schema `bearerAuth` (JWT), documentação viva em `/swagger-ui.html` e `/api/v1/swagger-ui.html`, e tags em todos os controllers.
+  6. **DTOs de Agendamento (`f4-t6`):** Implementados `AgendamentoRequestDTO`, `AgendamentoResponseDTO`, `RemarcarAgendamentoDTO`, `CancelarAgendamentoDTO` e `RecusarAgendamentoDTO` com Jakarta Validation.
+  7. **Alinhamento de Enums (`f4-t7`):** Criado enum `StatusAgendamento` (PENDENTE, CONFIRMADO, RECUSADO, CANCELADO, EM_ANDAMENTO, AGUARDANDO_CONFIRMACAO, REALIZADA) sincronizado com o type TypeScript do mobile.
+  8. **Envelope Unificado (`ApiResponse<T>`):** Envelope padronizado contendo `success`, `message`, `data` e `timestamp`.
