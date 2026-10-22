@@ -63,11 +63,24 @@
 ### Fase 4 — Padronizar Contrato Mobile/API & OpenAPI 3.0 ✅ [CONCLUÍDA]
 * **Objetivo:** Unificar contratos em `/api/v1`, documentação viva OpenAPI 3.0/Swagger, DTOs de agendamento e sincronização com TypeScript do mobile.
 * **Entregas Realizadas:**
-  1. **Prefixo Global e Versionamento (`f4-t1`):** Adotado `/api/v1` em todos os Controllers (`/api/v1/agendamentos`, `/api/v1/usuarios`, `/api/v1/auth`, `/api/v1/health`, `/api/v1/saberes`), mantendo alias transitório para rotas legadas para zero impacto retroativo.
+  1. **Prefixo Global e Versionamento (`f4-t1`):** Adotado `/api/v1` em todos os Controllers (`/api/v1/agendamentos`, `/api/v1/usuarios`, `/api/v1/auth`, `/api/v1/health`, `/api/v1/saberes`).
   2. **Verbos e Status Semânticos (`f4-t2`):** `POST` -> 201 Created com header e body; `GET/PUT/PATCH` -> 200 OK; Validação -> 400 Bad Request; Autenticação -> 401; Autorização -> 403; Conflito -> 409; Regra de Negócio -> 422.
-  3. **Consolidação de Perfil (`f4-t3`):** Criado endpoint unificado `GET /api/v1/usuarios/{id}/perfil` (`PerfilCompletoDTO`) integrando dados cadastrais, saberes, aptidões e interesses numa só requisição; `PerfilController` marcado como `@Deprecated` mas operacional.
-  4. **Padronização de Rotas de Agendamento (`f4-t4`):** Migrado de `/agendamentos` desordenado para rotas semânticas: `POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/aluno/{id}`, `GET /api/v1/agendamentos/professor/{id}`, `PUT /{id}/aceitar`, `PUT /{id}/recusar`, `PUT /{id}/cancelar`, `PUT /{id}/remarcar`.
-  5. **SpringDoc OpenAPI 3.0 & Swagger UI (`f4-t5`):** Criada classe `OpenApiConfig.java` com schema `bearerAuth` (JWT), documentação viva em `/swagger-ui.html` e `/api/v1/swagger-ui.html`, e tags em todos os controllers.
-  6. **DTOs de Agendamento (`f4-t6`):** Implementados `AgendamentoRequestDTO`, `AgendamentoResponseDTO`, `RemarcarAgendamentoDTO`, `CancelarAgendamentoDTO` e `RecusarAgendamentoDTO` com Jakarta Validation.
-  7. **Alinhamento de Enums (`f4-t7`):** Criado enum `StatusAgendamento` (PENDENTE, CONFIRMADO, RECUSADO, CANCELADO, EM_ANDAMENTO, AGUARDANDO_CONFIRMACAO, REALIZADA) sincronizado com o type TypeScript do mobile.
+  3. **Consolidação de Perfil (`f4-t3`):** Criado endpoint unificado `GET /api/v1/usuarios/{id}/perfil` (`PerfilCompletoDTO`) integrando dados cadastrais, saberes, aptidões e interesses numa só requisição.
+  4. **Padronização de Rotas de Agendamento (`f4-t4`):** Rotas semânticas: `POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/aluno/{id}`, `GET /api/v1/agendamentos/professor/{id}`, `PUT /{id}/aceitar`, `PUT /{id}/recusar`, `PUT /{id}/cancelar`, `PUT /{id}/remarcar`.
+  5. **SpringDoc OpenAPI 3.0 & Swagger UI (`f4-t5`):** Criada classe `OpenApiConfig.java` com schema `bearerAuth` (JWT) e Swagger UI em `/swagger-ui.html` e `/api/v1/swagger-ui.html`.
+  6. **DTOs de Agendamento (`f4-t6`):** Implementados `AgendamentoRequestDTO`, `AgendamentoResponseDTO`, `RemarcarAgendamentoDTO`, `CancelarAgendamentoDTO` e `RecusarAgendamentoDTO`.
+  7. **Alinhamento de Enums (`f4-t7`):** Criado enum `StatusAgendamento` sincronizado com o type TypeScript do mobile.
   8. **Envelope Unificado (`ApiResponse<T>`):** Envelope padronizado contendo `success`, `message`, `data` e `timestamp`.
+
+---
+
+### Fase 5 — Evoluir Modelo de Dados e Agendamento ✅ [CONCLUÍDA]
+* **Objetivo:** Flyway migrations V3 e V4, regras de antecedência de 24h, congelamento de preço, concorrência atômica e auditoria de transições.
+* **Entregas Realizadas:**
+  1. **Migration V3 (`f5-t3`, `f5-t4`, `f5-t5`):** `V3__agendamento_domain_evolution.sql` vinculando `saber_id` (disciplina), `assunto`, `modalidade` (ONLINE/PRESENCIAL) e `valor_aplicado` (NUMERIC congelado).
+  2. **Máquina de Estados & Enums (`f5-t6`):** Enum `StatusAgendamento` com transições permitidas (PENDENTE -> CONFIRMADO -> EM_ANDAMENTO -> AGUARDANDO_CONFIRMACAO -> REALIZADA; ou RECUSADO/CANCELADO).
+  3. **Tabela de Histórico e Auditoria (`f5-t7`):** Criação da tabela `tb_agendamento_historico` com entidade JPA `AgendamentoHistorico`, repositório e endpoint `GET /api/v1/agendamentos/{id}/historico` registrando cada transição com data, hora, motivo e autor.
+  4. **Antecedência Mínima de 24h no Servidor (`f5-t8`):** Validação estrita em `AgendamentoService` rejeitando aulas com menos de 24 horas de antecedência com HTTP 422 (`RegraNegocioException`).
+  5. **Concorrência Atômica Transacional (`f5-t9`):** Anotação `@Transactional` e verificação no banco contra choques de horário considerando apenas agendamentos ativos (`existsByProfessorAndDataAndHoraAndStatusNotIn`).
+  6. **Separação de Recusa e Cancelamento (`f5-t10`):** Recusa exclusiva para o professor em status `PENDENTE`; Cancelamento para aluno/professor/admin em `PENDENTE` ou `CONFIRMADO`.
+  7. **Massa de Dados de Demonstração Seed (`f5-t11`):** Migration `V4__seed_professores_e_aulas.sql` gerando 10 professores reais com fotos, saberes, aptidões com preço, alunos e 20 agendamentos com status variados.
