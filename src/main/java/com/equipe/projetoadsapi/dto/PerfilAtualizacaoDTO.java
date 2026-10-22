@@ -20,4 +20,12 @@ public class PerfilAtualizacaoDTO {
     
     // Lista usada se o usuário estiver salvando como Professor
     private List<AptidaoRequestDTO> aptidoes;
+
+    public List<String> getInteresses() {
+        return interessesNomes;
+    }
+
+    public void setInteresses(List<String> interesses) {
+        this.interessesNomes = interesses;
+    }
 }

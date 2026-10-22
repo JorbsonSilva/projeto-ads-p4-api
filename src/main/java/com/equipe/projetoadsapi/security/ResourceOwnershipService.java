@@ -26,4 +26,8 @@ public class ResourceOwnershipService {
             throw new AccessDeniedException("Acesso Proibido: Você não tem permissão para visualizar ou alterar dados de outro usuário.");
         }
     }
+
+    public void validarPropriedadeOuAdmin(Long targetUserId) {
+        validarPropriedadeUsuario(targetUserId);
+    }
 }

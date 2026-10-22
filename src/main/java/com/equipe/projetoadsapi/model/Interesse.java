@@ -30,4 +30,8 @@ public class Interesse {
     @ManyToOne 
     @JoinColumn(name = "saber_id", nullable = false)
     private Saber saber;
+
+    public String getNivel() {
+        return null;
+    }
 }

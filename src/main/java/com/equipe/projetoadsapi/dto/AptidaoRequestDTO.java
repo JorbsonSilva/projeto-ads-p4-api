@@ -13,4 +13,20 @@ public class AptidaoRequestDTO {
     private String nomeSaber;
     private String nivelDominio;
     private BigDecimal precoHora;
+
+    public String getMateria() {
+        return nomeSaber;
+    }
+
+    public void setMateria(String materia) {
+        this.nomeSaber = materia;
+    }
+
+    public BigDecimal getPreco() {
+        return precoHora;
+    }
+
+    public void setPreco(BigDecimal preco) {
+        this.precoHora = preco;
+    }
 }

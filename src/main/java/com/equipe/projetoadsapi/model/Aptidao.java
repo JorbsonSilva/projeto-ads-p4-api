@@ -60,4 +60,12 @@ public class Aptidao {
      */
     @Column(name = "preco_hora", nullable = false, precision = 10, scale = 2)
     private BigDecimal precoHora; // No banco, isso criará um campo NUMERIC(10,2) (Ex: 99999999.99)
+
+    public BigDecimal getPreco() {
+        return precoHora;
+    }
+
+    public void setPreco(BigDecimal preco) {
+        this.precoHora = preco;
+    }
 }

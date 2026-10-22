@@ -79,4 +79,20 @@ public class Usuario {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<Disponibilidade> disponibilidades;
 
+    public String getTipo() {
+        return papel != null ? papel.name().replace("ROLE_", "") : "ALUNO";
+    }
+
+    public void setTipo(String tipo) {
+        if (tipo == null) return;
+        String normalizado = tipo.toUpperCase();
+        if (!normalizado.startsWith("ROLE_")) {
+            normalizado = "ROLE_" + normalizado;
+        }
+        try {
+            this.papel = PapelUsuario.valueOf(normalizado);
+        } catch (IllegalArgumentException e) {
+            this.papel = PapelUsuario.ROLE_ALUNO;
+        }
+    }
 }

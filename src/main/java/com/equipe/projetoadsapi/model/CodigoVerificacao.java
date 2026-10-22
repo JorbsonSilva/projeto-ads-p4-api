@@ -34,9 +34,11 @@ public class CodigoVerificacao {
     @Column(name = "expira_em", nullable = false)
     private LocalDateTime expiraEm;
 
+    @lombok.Builder.Default
     @Column(name = "utilizado", nullable = false)
     private Boolean utilizado = false;
 
+    @lombok.Builder.Default
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 

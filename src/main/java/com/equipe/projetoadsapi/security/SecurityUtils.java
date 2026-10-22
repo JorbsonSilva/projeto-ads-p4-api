@@ -31,4 +31,8 @@ public final class SecurityUtils {
         return auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equalsIgnoreCase(roleWithPrefix));
     }
+
+    public static boolean possuiPapel(String role) {
+        return hasRole(role);
+    }
 }
