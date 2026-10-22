@@ -28,3 +28,18 @@
   6. Implementação do endpoint de Health Check `GET /api/health` retornando status UP em JSON.
   7. Validação do Maven Wrapper (`./mvnw`).
   8. **Status:** Pronto para o 1º Commit oficial de evolução do P4.
+
+### Fase 2 — Criar Base de Qualidade e Segurança ✅ [CONCLUÍDA]
+* **Objetivo:** Blindar contratos, padronizar erros e sanitizar dados sensíveis.
+* **Entregas Realizadas:**
+  1. Criação do `GlobalExceptionHandler` interceptando `MethodArgumentNotValidException`, `RegraNegocioException` e `RecursoNaoEncontradoException`.
+  2. Implementação do `ErrorResponseDTO` e `FieldErrorDTO` para formato uniforme de erro em toda a API.
+  3. Adição da dependência `spring-boot-starter-validation` no `pom.xml`.
+  4. Introdução de DTOs estritos: `UsuarioCadastroRequestDTO` e `UsuarioLoginRequestDTO` com Jakarta Bean Validation (`@NotBlank`, `@Email`, `@Size`).
+  5. Criação do `UsuarioResponseDTO` com garantia absoluta de **não exposição de senha** em respostas JSON.
+  6. Configuração de CORS por ambiente (`CorsConfig.java`) via `cors.allowed-origins`.
+  7. Configuração de logs com mascaramento de parâmetros SQL no `application.properties`.
+  8. Configuração de `Clock` injetável (`AppConfig.java`) para testes determinísticos de tempo.
+  9. Criação de bateria de testes unitários (`GlobalExceptionHandlerTest.java`) validando HTTP 422, 404 e segurança de senhas.
+
+---
