@@ -1,11 +1,17 @@
 package com.equipe.projetoadsapi.controller;
 
-import com.equipe.projetoadsapi.dto.UsuarioCadastroRequestDTO;
-import com.equipe.projetoadsapi.dto.UsuarioLoginRequestDTO;
-import com.equipe.projetoadsapi.dto.UsuarioResponseDTO;
+import com.equipe.projetoadsapi.dto.*;
 import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
+import com.equipe.projetoadsapi.model.Aptidao;
+import com.equipe.projetoadsapi.model.Interesse;
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.repository.AptidaoRepository;
+import com.equipe.projetoadsapi.repository.InteresseRepository;
+import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import com.equipe.projetoadsapi.service.UsuarioService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,27 +23,31 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * CONTROLLER DA ENTIDADE USUÁRIO (API RESTful)
- * Rastreabilidade: Fase 2 (Base de Qualidade e Segurança) - f2-t2, f2-t3, f2-t4
- * Entradas validadas com Bean Validation (@Valid) e saídas blindadas com UsuarioResponseDTO
- * para evitar qualquer exposição de senha ou credencial na resposta JSON.
+ * CONTROLLER DA ENTIDADE USUÁRIO (API RESTful v1)
+ * Rastreabilidade: Fase 2 (DTOs), Fase 3 (RBAC), Fase 4 (Contrato v1 e OpenAPI) - f4-t1, f4-t3
+ * 
+ * Centraliza e consolida operações sobre dados de usuário e perfil unificado.
  */
 @RestController
-@RequestMapping("/api/usuarios")
-@CrossOrigin(origins = "*")
+@RequestMapping({"/api/v1/usuarios", "/api/usuarios"})
+@Tag(name = "Usuários (v1)", description = "Operações cadastrais, busca de professores e perfil completo unificado")
 public class UsuarioController {
 
     @Autowired
     private UsuarioService service;
 
     @Autowired
-    private com.equipe.projetoadsapi.security.ResourceOwnershipService ownershipService;
+    private ResourceOwnershipService ownershipService;
 
-    // ------------------------------------------------------------------
-    // ROTA 1 — CADASTRO (Etapa 1: envia o código de verificação por e-mail)
-    // ------------------------------------------------------------------
+    @Autowired
+    private InteresseRepository interesseRepository;
+
+    @Autowired
+    private AptidaoRepository aptidaoRepository;
+
+    @Operation(summary = "Cadastro de novo usuário", description = "Inicia o fluxo de onboarding com envio de código de 6 dígitos por e-mail.")
     @PostMapping("/cadastro")
-    public ResponseEntity<Map<String, String>> cadastrar(@Valid @RequestBody UsuarioCadastroRequestDTO dto) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> cadastrar(@Valid @RequestBody UsuarioCadastroRequestDTO dto) {
         Usuario novoUsuario = new Usuario();
         novoUsuario.setNome(dto.getNome());
         novoUsuario.setEmail(dto.getEmail());
@@ -50,104 +60,121 @@ public class UsuarioController {
         novoUsuario.setFotoUrl(dto.getFotoUrl());
 
         service.cadastrarUsuario(novoUsuario);
-        return ResponseEntity.ok(Map.of("message", "Código de verificação enviado para o e-mail: " + novoUsuario.getEmail()));
+        return ResponseEntity.ok(ApiResponse.ok(
+                Map.of("email", novoUsuario.getEmail()),
+                "Código de verificação enviado para o e-mail: " + novoUsuario.getEmail()
+        ));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 2 — VERIFICAÇÃO DE E-MAIL (Etapa 2: confirma o código e salva)
-    // ------------------------------------------------------------------
+    @Operation(summary = "Verificação de e-mail com código OTP", description = "Confirma o código enviado e ativa o usuário no banco de dados.")
     @PostMapping("/verificar-email")
-    public ResponseEntity<UsuarioResponseDTO> verificarEmail(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> verificarEmail(@RequestBody Map<String, String> body) {
         String email  = body.get("email");
         String codigo = body.get("codigo");
         if (email == null || codigo == null) {
             throw new IllegalArgumentException("E-mail e código de verificação são obrigatórios.");
         }
         Usuario usuarioCriado = service.verificarEmail(email, codigo);
-        return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponseDTO.fromEntity(usuarioCriado));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(UsuarioResponseDTO.fromEntity(usuarioCriado), "E-mail validado com sucesso!"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 3 — LOGIN
-    // ------------------------------------------------------------------
+    @Operation(summary = "Login legado", description = "Autenticação legada. Para novos clientes, utilize /api/v1/auth/login.")
     @PostMapping("/login")
-    public ResponseEntity<UsuarioResponseDTO> loginUsuario(@Valid @RequestBody UsuarioLoginRequestDTO loginDTO) {
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> loginUsuario(@Valid @RequestBody UsuarioLoginRequestDTO loginDTO) {
         Usuario loginModel = new Usuario();
         loginModel.setEmail(loginDTO.getEmail());
         loginModel.setSenha(loginDTO.getSenha());
 
         Usuario usuarioAutenticado = service.consultaUsuario(loginModel);
-        return ResponseEntity.ok(UsuarioResponseDTO.fromEntity(usuarioAutenticado));
+        return ResponseEntity.ok(ApiResponse.ok(UsuarioResponseDTO.fromEntity(usuarioAutenticado), "Login realizado com sucesso"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 4 — BUSCAR POR ID
-    // ------------------------------------------------------------------
+    @Operation(summary = "Buscar usuário por ID", description = "Retorna dados cadastrais públicos do usuário sem expor senha.")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}")
-    public ResponseEntity<UsuarioResponseDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> buscarPorId(@PathVariable Long id) {
         Usuario usuarioEncontrado = service.buscarPorId(id);
         if (usuarioEncontrado == null) {
-            throw new RecursoNaoEncontradoException("Usuário não encontrado no banco de dados com ID: " + id);
+            throw new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id);
         }
-        return ResponseEntity.ok(UsuarioResponseDTO.fromEntity(usuarioEncontrado));
+        return ResponseEntity.ok(ApiResponse.ok(UsuarioResponseDTO.fromEntity(usuarioEncontrado)));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 5 — ATUALIZAR DADOS PESSOAIS
-    // ------------------------------------------------------------------
+    @Operation(summary = "Perfil Completo Consolidado", description = "Retorna dados cadastrais, biografia e saberes/interesses do usuário em chamada única.")
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/{id}/perfil")
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> obterPerfilCompleto(@PathVariable Long id) {
+        Usuario usuario = service.buscarPorId(id);
+        if (usuario == null) {
+            throw new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id);
+        }
+
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil consolidado recuperado com sucesso"));
+    }
+
+    @Operation(summary = "Atualizar dados cadastrais básicos", description = "Atualiza nome, foto e biografia do usuário autenticado.")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}")
-    public ResponseEntity<UsuarioResponseDTO> atualizarPerfil(@PathVariable Long id, @RequestBody Usuario dadosAtualizados) {
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarPerfil(
+            @PathVariable Long id, @RequestBody Usuario dadosAtualizados) {
         ownershipService.validarPropriedadeUsuario(id);
         Usuario atualizado = service.atualizarDados(id, dadosAtualizados);
-        return ResponseEntity.ok(UsuarioResponseDTO.fromEntity(atualizado));
+        return ResponseEntity.ok(ApiResponse.ok(UsuarioResponseDTO.fromEntity(atualizado), "Dados atualizados com sucesso"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 6 — ALTERAR SENHA
-    // ------------------------------------------------------------------
+    @Operation(summary = "Alterar senha de acesso", description = "Substitui a senha atual por uma nova com hashing BCrypt.")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}/senha")
-    public ResponseEntity<Map<String, String>> trocarSenha(@PathVariable Long id,
-                                                           @RequestBody Map<String, String> senhas) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> trocarSenha(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> senhas) {
         ownershipService.validarPropriedadeUsuario(id);
         service.alterarSenha(id, senhas);
-        return ResponseEntity.ok(Map.of("message", "Senha alterada com sucesso!"));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("status", "OK"), "Senha alterada com sucesso!"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 7 — ATUALIZAR PERFIL DO ALUNO
-    // ------------------------------------------------------------------
+    @Operation(summary = "Atualizar perfil de aluno com interesses", description = "Salva biografia e lista de IDs de matérias que deseja aprender.")
+    @SecurityRequirement(name = "bearerAuth")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/aluno")
-    public ResponseEntity<?> salvarPerfilAluno(@PathVariable Long id,
-                                               @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<ApiResponse<?>> salvarPerfilAluno(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> payload) {
+        ownershipService.validarPropriedadeUsuario(id);
         String bioExtraida = (String) payload.get("bio");
         List<Integer> interessesIds = (List<Integer>) payload.get("interessesIds");
-        return ResponseEntity.ok(service.atualizarBioAluno(id, bioExtraida, interessesIds));
+        Object resultado = service.atualizarBioAluno(id, bioExtraida, interessesIds);
+        return ResponseEntity.ok(ApiResponse.ok(resultado, "Perfil de aluno atualizado com sucesso"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 8 — ATUALIZAR PERFIL DO PROFESSOR
-    // ------------------------------------------------------------------
+    @Operation(summary = "Atualizar perfil de professor com aptidões", description = "Salva biografia e lista de matérias lecionadas com preço/hora.")
+    @SecurityRequirement(name = "bearerAuth")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/professor")
-    public ResponseEntity<?> salvarPerfilProfessor(@PathVariable Long id,
-                                                   @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<ApiResponse<?>> salvarPerfilProfessor(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> payload) {
+        ownershipService.validarPropriedadeUsuario(id);
         String bioExtraida = (String) payload.get("bio");
         List<Map<String, Object>> aptidoesPayload = (List<Map<String, Object>>) payload.get("aptidoesNova");
         List<Map<String, Object>> dispPayload = (List<Map<String, Object>>) payload.get("disponibilidadesNova");
 
-        return ResponseEntity.ok(service.atualizarPerfilProfessor(id, bioExtraida, aptidoesPayload, dispPayload));
+        Object resultado = service.atualizarPerfilProfessor(id, bioExtraida, aptidoesPayload, dispPayload);
+        return ResponseEntity.ok(ApiResponse.ok(resultado, "Perfil de professor atualizado com sucesso"));
     }
 
-    // ------------------------------------------------------------------
-    // ROTA 9 — PROFESSORES EM DESTAQUE
-    // ------------------------------------------------------------------
+    @Operation(summary = "Professores em destaque para o aluno", description = "Recomenda professores baseado nas matérias de interesse do aluno.")
     @GetMapping("/professores/destaque/{alunoId}")
-    public ResponseEntity<List<UsuarioResponseDTO>> obterProfessoresDestaque(@PathVariable Long alunoId) {
+    public ResponseEntity<ApiResponse<List<UsuarioResponseDTO>>> obterProfessoresDestaque(@PathVariable Long alunoId) {
         List<Usuario> professores = service.buscarProfessoresDestaquePorAluno(alunoId);
         List<UsuarioResponseDTO> dtoList = professores.stream()
                 .map(UsuarioResponseDTO::fromEntity)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(dtoList);
+        return ResponseEntity.ok(ApiResponse.ok(dtoList, "Professores em destaque recuperados"));
     }
 }
