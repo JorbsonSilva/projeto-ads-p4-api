@@ -81,7 +81,7 @@ public class AgendamentoService {
                 List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(professor.getId());
                 for (Aptidao a : aptidoes) {
                     if (a.getSaber() != null && a.getSaber().getId().equals(saber.getId()) && a.getPreco() != null) {
-                        valorCongelado = BigDecimal.valueOf(a.getPreco());
+                        valorCongelado = a.getPreco();
                         break;
                     }
                 }
