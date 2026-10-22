@@ -30,6 +30,9 @@ public class UsuarioController {
     @Autowired
     private UsuarioService service;
 
+    @Autowired
+    private com.equipe.projetoadsapi.security.ResourceOwnershipService ownershipService;
+
     // ------------------------------------------------------------------
     // ROTA 1 — CADASTRO (Etapa 1: envia o código de verificação por e-mail)
     // ------------------------------------------------------------------
@@ -94,6 +97,7 @@ public class UsuarioController {
     // ------------------------------------------------------------------
     @PutMapping("/{id}")
     public ResponseEntity<UsuarioResponseDTO> atualizarPerfil(@PathVariable Long id, @RequestBody Usuario dadosAtualizados) {
+        ownershipService.validarPropriedadeUsuario(id);
         Usuario atualizado = service.atualizarDados(id, dadosAtualizados);
         return ResponseEntity.ok(UsuarioResponseDTO.fromEntity(atualizado));
     }
@@ -104,6 +108,7 @@ public class UsuarioController {
     @PutMapping("/{id}/senha")
     public ResponseEntity<Map<String, String>> trocarSenha(@PathVariable Long id,
                                                            @RequestBody Map<String, String> senhas) {
+        ownershipService.validarPropriedadeUsuario(id);
         service.alterarSenha(id, senhas);
         return ResponseEntity.ok(Map.of("message", "Senha alterada com sucesso!"));
     }
