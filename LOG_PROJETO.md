@@ -101,3 +101,16 @@
   9. **Endpoints do Controller (`AulaController.java`):** Métodos REST anotados com OpenAPI 3.0 e validação de posse de recurso (`ResourceOwnershipService`).
 
 ---
+
+### Fase 7 — Chat, Suporte e Notificações Internas ✅ [CONCLUÍDA]
+* **Objetivo:** Sistema de mensagens internas restrito estritamente a mentor e aluno vinculados ao agendamento, tickets de suporte com protocolo único, notificações internas sem serviços externos pagos, e canal de denúncias para moderação da plataforma.
+* **Entregas Realizadas:**
+  1. **Migration V7 (`f7-t1`):** Criação das tabelas `tb_conversas` e `tb_mensagens` com chaves estrangeiras, índices de performance e restrições de integridade.
+  2. **Entidades & Repositórios de Chat (`f7-t2`):** Criação das entidades `Conversa` e `Mensagem`, com repositórios JPA otimizados e ordenação cronológica.
+  3. **Segurança do Chat & Regra de Negócio (`f7-t3`):** Validação fail-closed onde terceiros não autorizados são bloqueados (HTTP 403), proibição de mensagens em agendamentos cancelados, e separação de concerns: ações no chat nunca alteram o status do agendamento.
+  4. **Migration V8 (`f7-t4`):** Criação das tabelas `tb_tickets_suporte`, `tb_notificacoes` e `tb_denuncias` com índices para busca por protocolo e consultas por destinatário.
+  5. **Módulo de Suporte & Protocolo Único (`f7-t5`):** Entidade `TicketSuporte` com protocolo no formato `SUP-YYYY-XXXXXX`, categorização (`DUVIDA`, `PAGAMENTO`, `TECNICO`, `CONDUTA`, `OUTRO`), priorização e ciclo de atendimento com respostas de administradores.
+  6. **Central de Notificações Internas (`f7-t6`):** Serviço e endpoints de notificações internas via polling (`/api/v1/notificacoes`), contador de não-lidas, tipos variados (`MENSAGEM_CHAT`, `STATUS_AULA`, `SESSAO_AULA`, `TICKET_RESPOSTA`, `SISTEMA`), com zero custo e sem dependência de serviços externos.
+  7. **Canal de Denúncias e Moderação (`f7-t7`):** Entidade `Denuncia` e endpoint para reporte de assédio, má conduta, atraso ou conteúdo impróprio, com bloqueio de auto-denúncia e fila de moderação administrativa.
+  8. **Testes Automatizados (`f7-t8`):** Suite completa em `ChatESuporteTest.java` validando rejeição de terceiros no chat, geração de protocolo único de suporte, bloqueio de auto-denúncia e acionamento de notificações internas automáticas.
+
