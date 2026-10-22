@@ -73,3 +73,16 @@
   8. **Envelope Unificado (`ApiResponse<T>`):** Envelope padronizado contendo `success`, `message`, `data` e `timestamp`.
 
 ---
+
+### Fase 5 — Evoluir Modelo de Dados e Agendamento ✅ [CONCLUÍDA]
+* **Objetivo:** Flyway migrations V3 e V4, regras de antecedência de 24h, congelamento de preço, concorrência atômica e auditoria de transições.
+* **Entregas Realizadas:**
+  1. **Migration V3 (`f5-t3`, `f5-t4`, `f5-t5`):** `V3__agendamento_domain_evolution.sql` vinculando `saber_id` (disciplina), `assunto`, `modalidade` (ONLINE/PRESENCIAL) e `valor_aplicado` (NUMERIC congelado).
+  2. **Máquina de Estados & Enums (`f5-t6`):** Enum `StatusAgendamento` com transições permitidas (PENDENTE -> CONFIRMADO -> EM_ANDAMENTO -> AGUARDANDO_CONFIRMACAO -> REALIZADA; ou RECUSADO/CANCELADO).
+  3. **Tabela de Histórico e Auditoria (`f5-t7`):** Criação da tabela `tb_agendamento_historico` com entidade JPA `AgendamentoHistorico`, repositório e endpoint `GET /api/v1/agendamentos/{id}/historico` registrando cada transição com data, hora, motivo e autor.
+  4. **Antecedência Mínima de 24h no Servidor (`f5-t8`):** Validação estrita em `AgendamentoService` rejeitando aulas com menos de 24 horas de antecedência com HTTP 422 (`RegraNegocioException`).
+  5. **Concorrência Atômica Transacional (`f5-t9`):** Anotação `@Transactional` e verificação no banco contra choques de horário considerando apenas agendamentos ativos (`existsByProfessorAndDataAndHoraAndStatusNotIn`).
+  6. **Separação de Recusa e Cancelamento (`f5-t10`):** Recusa exclusiva para o professor em status `PENDENTE`; Cancelamento para aluno/professor/admin em `PENDENTE` ou `CONFIRMADO`.
+  7. **Massa de Dados de Demonstração Seed (`f5-t11`):** Migration `V4__seed_professores_e_aulas.sql` gerando 10 professores reais com fotos, saberes, aptidões com preço, alunos e 20 agendamentos com status variados.
+
+---
