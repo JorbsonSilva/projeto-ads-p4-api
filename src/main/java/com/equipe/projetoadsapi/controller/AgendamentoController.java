@@ -1,6 +1,8 @@
 package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.*;
+import com.equipe.projetoadsapi.model.AgendamentoHistorico;
+import com.equipe.projetoadsapi.repository.AgendamentoHistoricoRepository;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import com.equipe.projetoadsapi.service.AgendamentoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,10 +19,10 @@ import java.util.List;
 
 /**
  * CONTROLLER DE AGENDAMENTOS (v1).
- * Rastreabilidade: Fase 4 - f4-t1, f4-t2, f4-t4, f4-t5, f4-t6
+ * Rastreabilidade: Fase 4 (Contrato v1) & Fase 5 (Evolução de Domínio)
  * 
- * Contrato RESTful padronizado com prefixo /api/v1/agendamentos, mantendo alias retroativo
- * para rotas legadas (/api/agendamentos e /agendamentos) para compatibilidade transitória.
+ * Contrato RESTful com prefixo /api/v1/agendamentos, validação de antecedência de 24h,
+ * histórico de transições auditadas e concorrência transacional.
  */
 @RestController
 @RequestMapping({"/api/v1/agendamentos", "/api/agendamentos", "/agendamentos"})
@@ -34,12 +36,15 @@ public class AgendamentoController {
     @Autowired
     private ResourceOwnershipService ownershipService;
 
-    @Operation(summary = "Solicitar novo agendamento de aula", description = "Aluno solicita um horário de mentoria com um professor específico.")
+    @Autowired
+    private AgendamentoHistoricoRepository historicoRepository;
+
+    @Operation(summary = "Solicitar novo agendamento de aula", description = "Aluno solicita um horário de mentoria com antecedência mínima de 24h e congelamento de preço.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Solicitação criada com sucesso"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dados da solicitação inválidos"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Conflito de horário do professor"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "Violação de regra de negócio")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "Violação de regra de antecedência de 24h ou negócio")
     })
     @PostMapping
     public ResponseEntity<ApiResponse<AgendamentoResponseDTO>> criarAgendamento(
@@ -71,6 +76,15 @@ public class AgendamentoController {
     public ResponseEntity<ApiResponse<AgendamentoResponseDTO>> buscarPorId(@PathVariable Long id) {
         AgendamentoResponseDTO dto = agendamentoService.buscarPorId(id);
         return ResponseEntity.ok(ApiResponse.ok(dto));
+    }
+
+    @Operation(summary = "Histórico de auditoria do agendamento", description = "Consulta todas as transições de status da aula com data/hora e autor.")
+    @GetMapping("/{id}/historico")
+    public ResponseEntity<ApiResponse<List<AgendamentoHistorico>>> obterHistorico(@PathVariable Long id) {
+        AgendamentoResponseDTO agendamento = agendamentoService.buscarPorId(id);
+        ownershipService.validarPropriedadeOuAdmin(agendamento.getAlunoId());
+        List<AgendamentoHistorico> historico = historicoRepository.findByAgendamentoIdOrderByDataHoraDesc(id);
+        return ResponseEntity.ok(ApiResponse.ok(historico, "Histórico de transições recuperado"));
     }
 
     @Operation(summary = "Aceitar solicitação de aula", description = "Professor aceita a solicitação de aula pendente.")
@@ -105,7 +119,7 @@ public class AgendamentoController {
         return ResponseEntity.ok(ApiResponse.ok(atualizado, "Agendamento cancelado com sucesso"));
     }
 
-    @Operation(summary = "Remarcar aula", description = "Altera data e horário da aula confirmada.")
+    @Operation(summary = "Remarcar aula", description = "Altera data e horário da aula confirmada com validação de 24h e conflito.")
     @PutMapping("/{id}/remarcar")
     public ResponseEntity<ApiResponse<AgendamentoResponseDTO>> remarcarAgendamento(
             @PathVariable Long id,
