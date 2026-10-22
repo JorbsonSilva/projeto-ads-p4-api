@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.equipe</groupId>
-	<artifactId>projeto-ads-p3-api</artifactId>
+	<artifactId>projeto-ads-p4-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>projeto-ads-p3-api</name>
-	<description>Demo project for Spring Boot</description>
+	<name>projeto-ads-p4-api</name>
+	<description>Plataforma Orienta - Backend API (Período 4)</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -41,6 +41,35 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
+				<!-- Spring Security 6 (Fase 3 - Auth & RBAC) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<!-- JWT (JSON Web Token) - jjwt 0.12.6 -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<!-- Bean Validation (Jakarta) — Fase 2 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
 		
 		<!-- swagger -->
 		<dependency>
@@ -54,6 +83,16 @@
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Migrations SQL Versionadas (Flyway Community - DT-006) -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 
 		<!-- E-mail (SMTP) — inclui JavaMailSender + angus-mail automaticamente -->
