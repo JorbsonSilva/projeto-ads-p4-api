@@ -60,6 +60,43 @@
 
 ---
 
-## Próximos Passos (Fase 4 & Fase 5)
-* [ ] Fase 4: Padronizar contrato mobile/API com prefixo `/api/v1` e documentação OpenAPI viva.
-* [ ] Fase 5: Evoluir modelo de dados e regras de antecedência de 24h com Flyway.
+### Fase 4 — Padronizar Contrato Mobile/API & OpenAPI 3.0 ✅ [CONCLUÍDA]
+* **Objetivo:** Unificar contratos em `/api/v1`, documentação viva OpenAPI 3.0/Swagger, DTOs de agendamento e sincronização com TypeScript do mobile.
+* **Entregas Realizadas:**
+  1. **Prefixo Global e Versionamento (`f4-t1`):** Adotado `/api/v1` em todos os Controllers (`/api/v1/agendamentos`, `/api/v1/usuarios`, `/api/v1/auth`, `/api/v1/health`, `/api/v1/saberes`).
+  2. **Verbos e Status Semânticos (`f4-t2`):** `POST` -> 201 Created com header e body; `GET/PUT/PATCH` -> 200 OK; Validação -> 400 Bad Request; Autenticação -> 401; Autorização -> 403; Conflito -> 409; Regra de Negócio -> 422.
+  3. **Consolidação de Perfil (`f4-t3`):** Criado endpoint unificado `GET /api/v1/usuarios/{id}/perfil` (`PerfilCompletoDTO`) integrando dados cadastrais, saberes, aptidões e interesses numa só requisição.
+  4. **Padronização de Rotas de Agendamento (`f4-t4`):** Rotas semânticas: `POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/aluno/{id}`, `GET /api/v1/agendamentos/professor/{id}`, `PUT /{id}/aceitar`, `PUT /{id}/recusar`, `PUT /{id}/cancelar`, `PUT /{id}/remarcar`.
+  5. **SpringDoc OpenAPI 3.0 & Swagger UI (`f4-t5`):** Criada classe `OpenApiConfig.java` com schema `bearerAuth` (JWT) e Swagger UI em `/swagger-ui.html` e `/api/v1/swagger-ui.html`.
+  6. **DTOs de Agendamento (`f4-t6`):** Implementados `AgendamentoRequestDTO`, `AgendamentoResponseDTO`, `RemarcarAgendamentoDTO`, `CancelarAgendamentoDTO` e `RecusarAgendamentoDTO`.
+  7. **Alinhamento de Enums (`f4-t7`):** Criado enum `StatusAgendamento` sincronizado com o type TypeScript do mobile.
+  8. **Envelope Unificado (`ApiResponse<T>`):** Envelope padronizado contendo `success`, `message`, `data` e `timestamp`.
+
+---
+
+### Fase 5 — Evoluir Modelo de Dados e Agendamento ✅ [CONCLUÍDA]
+* **Objetivo:** Flyway migrations V3 e V4, regras de antecedência de 24h, congelamento de preço, concorrência atômica e auditoria de transições.
+* **Entregas Realizadas:**
+  1. **Migration V3 (`f5-t3`, `f5-t4`, `f5-t5`):** `V3__agendamento_domain_evolution.sql` vinculando `saber_id` (disciplina), `assunto`, `modalidade` (ONLINE/PRESENCIAL) e `valor_aplicado` (NUMERIC congelado).
+  2. **Máquina de Estados & Enums (`f5-t6`):** Enum `StatusAgendamento` com transições permitidas (PENDENTE -> CONFIRMADO -> EM_ANDAMENTO -> AGUARDANDO_CONFIRMACAO -> REALIZADA; ou RECUSADO/CANCELADO).
+  3. **Tabela de Histórico e Auditoria (`f5-t7`):** Criação da tabela `tb_agendamento_historico` com entidade JPA `AgendamentoHistorico`, repositório e endpoint `GET /api/v1/agendamentos/{id}/historico` registrando cada transição com data, hora, motivo e autor.
+  4. **Antecedência Mínima de 24h no Servidor (`f5-t8`):** Validação estrita em `AgendamentoService` rejeitando aulas com menos de 24 horas de antecedência com HTTP 422 (`RegraNegocioException`).
+  5. **Concorrência Atômica Transacional (`f5-t9`):** Anotação `@Transactional` e verificação no banco contra choques de horário considerando apenas agendamentos ativos (`existsByProfessorAndDataAndHoraAndStatusNotIn`).
+  6. **Separação de Recusa e Cancelamento (`f5-t10`):** Recusa exclusiva para o professor em status `PENDENTE`; Cancelamento para aluno/professor/admin em `PENDENTE` ou `CONFIRMADO`.
+  7. **Massa de Dados de Demonstração Seed (`f5-t11`):** Migration `V4__seed_professores_e_aulas.sql` gerando 10 professores reais com fotos, saberes, aptidões com preço, alunos e 20 agendamentos com status variados.
+
+---
+
+### Fase 6 — Implementar Aula, Cronômetro e Avaliação ✅ [CONCLUÍDA]
+* **Objetivo:** Completar o ciclo da aula: início bilateral, cronometragem no servidor, consentimento mútuo e avaliação pós-aula (1 a 5 estrelas).
+* **Entregas Realizadas:**
+  1. **Migration V5 & Entidade SessaoAula (`f6-t1`):** Criação da tabela `tb_sessao_aula` com colunas `aluno_checkin`, `professor_checkin`, `inicio_efetivo`, `fim_efetivo`, `segundos_pausados`, `ultima_pausa_em`, `duracao_total_segundos` e status (`StatusSessao`).
+  2. **Início Bilateral da Aula (`f6-t2`):** Check-in independente de cada participante; o cronômetro oficial só dispara e o agendamento muda para `EM_ANDAMENTO` após a confirmação mútua de aluno e professor.
+  3. **Relógio do Servidor & Anti-Fraude (`f6-t3`):** Cálculo de segundos decorridos e pausas executado com precisão no servidor (`calcularSegundosDecorridos`), impossibilitando fraudes em relógios locais.
+  4. **Pausa e Retomada por Consentimento Mútuo (`f6-t4`):** Endpoint para pausar a aula em andamento, congelando o tempo oficial com carimbo de `ultima_pausa_em` e somando intervalos pausados na retomada.
+  5. **Tabela de Auditoria de Eventos de Aula (`f6-t5`):** Criação da tabela `tb_aula_eventos` e entidade `AulaEvento` registrando cada etapa do ciclo de vida ao vivo (`CHECKIN_ALUNO`, `CHECKIN_PROFESSOR`, `INICIO_AULA`, `PAUSA`, `RETOMADA`, `SOLICITACAO_FIM`, `CONFIRMACAO_FIM`).
+  6. **Finalização Bilateral & Estado AGUARDANDO_CONFIRMACAO (`f6-t6`):** O primeiro encerramento transita para `AGUARDANDO_CONFIRMACAO`; apenas após o aceite mútuo a aula atinge `REALIZADA` e a sessão `CONCLUIDA`.
+  7. **Módulo de Avaliação Pós-Aula & Migration V6 (`f6-t8`):** Criação da tabela `tb_avaliacoes` e entidade `Avaliacao`, com validação de nota de 1 a 5 estrelas, pontualidade, didática e comentário. Bloqueio estrito de avaliações antes do status `REALIZADA` e cálculo dinâmico da média de notas do usuário avaliado.
+  8. **Testes Unitários da Máquina de Estados (`f6-t9`):** Bateria de testes em `MaquinaEstadosAulaTest.java` cobrindo check-in bilateral, transições ilegais, pausas inválidas, fluxo de encerramento e bloqueio de intrusos.
+  9. **Endpoints do Controller (`AulaController.java`):** Métodos REST anotados com OpenAPI 3.0 e validação de posse de recurso (`ResourceOwnershipService`).
+
