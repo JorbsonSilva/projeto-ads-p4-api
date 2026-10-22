@@ -36,6 +36,15 @@ public class Usuario {
     @Column(name = "senha", nullable = false)
     private String senha;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "papel", length = 30)
+    private PapelUsuario papel = PapelUsuario.ROLE_ALUNO;
+
+    @Column(name = "email_verificado")
+    private Boolean emailVerificado = false;
+
+
+
     @Column(name = "cpf", unique = true, length = 14)
     private String cpf;
 
