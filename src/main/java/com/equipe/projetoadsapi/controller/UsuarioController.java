@@ -52,7 +52,7 @@ public class UsuarioController {
         novoUsuario.setNome(dto.getNome());
         novoUsuario.setEmail(dto.getEmail());
         novoUsuario.setSenha(dto.getSenha());
-        novoUsuario.setTipo(dto.getTipo());
+        novoUsuario.setTipo(dto.getTipo() != null && !dto.getTipo().isBlank() ? dto.getTipo() : "ALUNO");
         novoUsuario.setCpf(dto.getCpf());
         novoUsuario.setDataNascimento(dto.getDataNascimento());
         novoUsuario.setBioAluno(dto.getBioAluno());
@@ -64,6 +64,17 @@ public class UsuarioController {
                 Map.of("email", novoUsuario.getEmail()),
                 "Código de verificação enviado para o e-mail: " + novoUsuario.getEmail()
         ));
+    }
+
+    @Operation(summary = "Reenviar código de verificação", description = "Dispara novamente o código de verificação para o e-mail informado.")
+    @PostMapping("/reenviar-verificacao")
+    public ResponseEntity<ApiResponse<Map<String, String>>> reenviarVerificacao(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("O e-mail é obrigatório.");
+        }
+        service.reenviarCodigoVerificacao(email);
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("email", email), "Código de verificação reenviado com sucesso!"));
     }
 
     @Operation(summary = "Verificação de e-mail com código OTP", description = "Confirma o código enviado e ativa o usuário no banco de dados.")
@@ -176,5 +187,56 @@ public class UsuarioController {
                 .map(UsuarioResponseDTO::fromEntity)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(dtoList, "Professores em destaque recuperados"));
+    }
+
+    @Operation(summary = "Busca avançada de professores com geolocalização e raio (Fase 8)", 
+               description = "Filtra por disciplina, modalidade (PRESENCIAL/ONLINE), raio aproximado (Haversine), região e preço máximo.")
+    @GetMapping("/professores/busca")
+    public ResponseEntity<ApiResponse<List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO>>> buscarProfessores(
+            @RequestParam(required = false) Long saberId,
+            @RequestParam(required = false, defaultValue = "TODAS") String modalidade,
+            @RequestParam(required = false) String termo,
+            @RequestParam(required = false) String regiao,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false, defaultValue = "10") Integer raioKm,
+            @RequestParam(required = false) Double precoMax
+    ) {
+        List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO> resultados = service.buscarProfessoresAvancado(
+                saberId, modalidade, termo, regiao, latitude, longitude, raioKm, precoMax
+        );
+        return ResponseEntity.ok(ApiResponse.ok(resultados, "Professores encontrados com sucesso"));
+    }
+
+    @Operation(summary = "Atualizar área de atendimento presencial e localização (Fase 8)", 
+               description = "Permite ao professor configurar sua região de atendimento, raio máximo e disponibilidade presencial.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PutMapping("/{id}/localizacao")
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarLocalizacao(
+            @PathVariable Long id,
+            @Valid @RequestBody com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO dto
+    ) {
+        ownershipService.validarPropriedadeUsuario(id);
+        Usuario atualizado = service.atualizarLocalizacaoProfessor(id, dto);
+        return ResponseEntity.ok(ApiResponse.ok(
+                UsuarioResponseDTO.fromEntity(atualizado),
+                "Área de atendimento e localização atualizadas com sucesso"
+        ));
+    }
+
+    @Operation(summary = "Cadastrar ou atualizar cartão fictício demonstrativo (Fase 5 / Decisão 18)", 
+               description = "Armazena estritamente a bandeira e os 4 últimos dígitos para demonstração acadêmica. Não processa cobrança real e proíbe armazenamento de CVV.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PutMapping("/{id}/cartao-ficticio")
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarCartaoFicticio(
+            @PathVariable Long id,
+            @Valid @RequestBody com.equipe.projetoadsapi.dto.CartaoFicticioDTO dto
+    ) {
+        ownershipService.validarPropriedadeUsuario(id);
+        Usuario atualizado = service.atualizarCartaoFicticio(id, dto);
+        return ResponseEntity.ok(ApiResponse.ok(
+                UsuarioResponseDTO.fromEntity(atualizado),
+                "Dados de pagamento demonstrativo registrados com sucesso (sem cobrança real)"
+        ));
     }
 }

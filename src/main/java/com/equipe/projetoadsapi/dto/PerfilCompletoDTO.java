@@ -50,6 +50,18 @@ public class PerfilCompletoDTO {
     @Schema(description = "Indica se o e-mail foi formalmente validado via código")
     private Boolean emailVerificado;
 
+    // =========================================================================
+    // PAGAMENTO FICTÍCIO / DEMONSTRATIVO (Decisão 18 - PROP-FIN-01)
+    // =========================================================================
+    @Schema(description = "Bandeira do cartão cadastrado para fins demonstrativos", example = "Mastercard")
+    private String cartaoFicticioBandeira;
+
+    @Schema(description = "Quatro últimos dígitos do cartão para exibição segura", example = "4242")
+    private String cartaoFicticioUltimosDigitos;
+
+    @Schema(description = "Nome do titular do cartão cadastrado", example = "ALUNO DEMONSTRACAO")
+    private String cartaoFicticioTitular;
+
     @Schema(description = "Lista de matérias de interesse (perfil aluno)")
     @Builder.Default
     private List<SaberItemDTO> interesses = new ArrayList<>();
@@ -110,6 +122,9 @@ public class PerfilCompletoDTO {
                 .bioProfessor(usuario.getBioProfessor())
                 .dataNascimento(usuario.getDataNascimento())
                 .emailVerificado(usuario.getEmailVerificado())
+                .cartaoFicticioBandeira(usuario.getCartaoFicticioBandeira())
+                .cartaoFicticioUltimosDigitos(usuario.getCartaoFicticioUltimosDigitos())
+                .cartaoFicticioTitular(usuario.getCartaoFicticioTitular())
                 .interesses(itensInteresse)
                 .aptidoes(itensAptidao)
                 .build();

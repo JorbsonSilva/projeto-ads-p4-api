@@ -29,6 +29,12 @@ public class UsuarioResponseDTO {
     private String fotoUrl;
     private Double notaMedia;
     private Integer totalAvaliacoes;
+    private Boolean oferecePresencial;
+    private String regiaoAtendimento;
+    private Integer raioAtendimentoKm;
+    private String cartaoFicticioBandeira;
+    private String cartaoFicticioUltimosDigitos;
+    private String cartaoFicticioTitular;
 
     public static UsuarioResponseDTO fromEntity(Usuario u) {
         if (u == null) return null;
@@ -44,6 +50,12 @@ public class UsuarioResponseDTO {
                 .fotoUrl(u.getFotoUrl())
                 .notaMedia(u.getNotaMedia())
                 .totalAvaliacoes(u.getTotalAvaliacoes())
+                .oferecePresencial(u.getOferecePresencial())
+                .regiaoAtendimento(u.getRegiaoAtendimento())
+                .raioAtendimentoKm(u.getRaioAtendimentoKm())
+                .cartaoFicticioBandeira(u.getCartaoFicticioBandeira())
+                .cartaoFicticioUltimosDigitos(u.getCartaoFicticioUltimosDigitos())
+                .cartaoFicticioTitular(u.getCartaoFicticioTitular())
                 .build();
     }
 }

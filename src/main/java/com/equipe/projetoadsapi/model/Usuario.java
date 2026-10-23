@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.Builder;
 
 /**
  * ENTIDADE USUÁRIO (Mapeamento Objeto-Relacional)
@@ -18,7 +19,8 @@ import lombok.Setter;
 @Getter // Cria os gets de tudo (Lombok)
 @Setter // Cria os sets de tudo (Lombok)
 @NoArgsConstructor // Construtor vazio para o banco de dados
-@AllArgsConstructor // Construtor cheio para você usar no código
+@AllArgsConstructor
+@Builder // Construtor cheio para você usar no código
 public class Usuario {
 
     @Id
@@ -36,14 +38,14 @@ public class Usuario {
     @Column(name = "senha", nullable = false)
     private String senha;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "papel", length = 30)
     private PapelUsuario papel = PapelUsuario.ROLE_ALUNO;
 
+    @Builder.Default
     @Column(name = "email_verificado")
     private Boolean emailVerificado = false;
-
-
 
     @Column(name = "cpf", unique = true, length = 14)
     private String cpf;
@@ -60,11 +62,49 @@ public class Usuario {
     @Column(name = "foto_url", length = 1000)
     private String fotoUrl;
 
-    @Column(name = "nota_media")
+    @Builder.Default
+    @Column(name = "nota_media", columnDefinition = "numeric")
     private Double notaMedia = 5.0; // Professor recém-cadastrado começa com 5 estrelas
 
+    @Builder.Default
     @Column(name = "total_avaliacoes")
     private Integer totalAvaliacoes = 0; // Começa com 0 avaliações
+
+    // =========================================================================
+    // LOCALIZAÇÃO E ATENDIMENTO PRESENCIAL (Fase 8 / MAP-001, MAP-002, LGPD)
+    // =========================================================================
+    @Builder.Default
+    @Column(name = "oferece_presencial")
+    private Boolean oferecePresencial = false;
+
+    @Column(name = "regiao_atendimento", length = 100)
+    private String regiaoAtendimento;
+
+    // Coordenadas protegidas no servidor - não expostas ao cliente (MAP-SEC-002)
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+    @Column(name = "latitude_aproximada")
+    private Double latitudeAproximada;
+
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+    @Column(name = "longitude_aproximada")
+    private Double longitudeAproximada;
+
+    @Builder.Default
+    @Column(name = "raio_atendimento_km")
+    private Integer raioAtendimentoKm = 10;
+
+    // =========================================================================
+    // DADOS FINANCEIROS DEMONSTRATIVOS (Fase 5 / Decisão Técnica 18 - PROP-FIN-01)
+    // Sem cobrança real, sem gateways pagos e estritamente proibido salvar CVV
+    // =========================================================================
+    @Column(name = "cartao_ficticio_bandeira", length = 30)
+    private String cartaoFicticioBandeira;
+
+    @Column(name = "cartao_ficticio_ultimos_digitos", length = 4)
+    private String cartaoFicticioUltimosDigitos;
+
+    @Column(name = "cartao_ficticio_titular", length = 100)
+    private String cartaoFicticioTitular;
 
     // 🟢 CORREÇÃO: Envia a lista para o Front-end, mas quebra o loop infinito ignorando apenas o 'usuario' do outro lado
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties("usuario")
