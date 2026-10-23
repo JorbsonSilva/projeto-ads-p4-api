@@ -1,12 +1,29 @@
-# Fase 9 — Backend: Assistente Controlado por Regras (Triagem Determinística)
+# Orienta API — Fase 10: Testes, Ensaio e Entrega para a Banca
 
-## Arquitetura e Decisões Técnicas
-- **Zero Custo de API**: Elimina dependências de serviços pagos (OpenAI/Anthropic).
-- **Sem Alucinação**: Todas as respostas são baseadas na máquina de estados finitos (`TriageStep`) e nos dados oficiais do banco.
-- **Fail-Safe para Suporte**: Perguntas desconhecidas ou fora de escopo são roteadas para a fila de suporte humano com protocolo gerado automaticamente.
-- **Apenas Leitura (@Transactional(readOnly = true))**: O assistente não possui permissão para gravar ou agendar aulas diretamente. O card de ação direciona o aluno para a tela padrão de confirmação.
+## 🎯 Objetivo da Fase 10
+Garantir que a API esteja 100% testada, com script de reset de banco rápido (15 segundos) e dados representativos para demonstrar todo o ciclo de vida da plataforma durante a banca acadêmica de ADS.
 
-## Endpoints Adicionados:
-- `POST /api/v1/assistente/triagem` — Processamento de cada etapa da triagem
-- `GET /api/v1/assistente/regras` — Especificação da árvore de decisão para auditoria
-- `GET /api/v1/assistente/faq` — FAQ determinístico embutido
+## 🚀 Comandos Rápidos da Banca
+1. Resetar banco com dados da banca:
+   ```bash
+   # No Linux/Mac:
+   ./scripts/reset-banca-seed.sh
+
+   # No Windows (PowerShell):
+   ./scripts/reset-banca-seed.ps1
+   ```
+
+2. Executar testes de integração do fluxo completo:
+   ```bash
+   mvn test -Dtest=BancaFlowIntegrationTest
+   ```
+
+3. Iniciar API local em modo apresentação:
+   ```bash
+   mvn spring-boot:run
+   ```
+
+## 👥 Contas Prontas para a Apresentação
+- **Aluno**: `aluno.banca@orienta.edu.br` / `Senha@123`
+- **Professor 1**: `prof.carlos@orienta.edu.br` / `Senha@123` (Banco de Dados, R$ 70,00/h, Centro)
+- **Professor 2**: `profa.juliana@orienta.edu.br` / `Senha@123` (Cálculo I, R$ 55,00/h, Zona Sul)
