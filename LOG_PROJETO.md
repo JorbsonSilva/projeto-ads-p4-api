@@ -114,3 +114,15 @@
   7. **Canal de Denúncias e Moderação (`f7-t7`):** Entidade `Denuncia` e endpoint para reporte de assédio, má conduta, atraso ou conteúdo impróprio, com bloqueio de auto-denúncia e fila de moderação administrativa.
   8. **Testes Automatizados (`f7-t8`):** Suite completa em `ChatESuporteTest.java` validando rejeição de terceiros no chat, geração de protocolo único de suporte, bloqueio de auto-denúncia e acionamento de notificações internas automáticas.
 
+---
+
+### Fase 8 — Localização Aproximada e Busca por Raio ✅ [CONCLUÍDA]
+* **Objetivo:** Suportar aulas presenciais sem expor endereço residencial de professores ou alunos, calculando distâncias no servidor via fórmula de Haversine a custo zero, com fallback para busca por bairro/região e total conformidade com a LGPD (MAP-001 a MAP-006, MAP-SEC-002).
+* **Entregas Realizadas:**
+  1. **Migration V9 (`f8-t1`):** Adição dos campos `oferece_presencial`, `regiao_atendimento`, `latitude_aproximada`, `longitude_aproximada` e `raio_atendimento_km` na tabela `tb_usuarios`, índice de busca e seed de localização de professores de teste.
+  2. **Serviço de Geolocalização Haversine (`f8-t3`):** Criação de `LocalizacaoService.java` implementando a fórmula matemática do grande círculo de Haversine em Java, calculando distâncias em quilômetros com arredondamento seguro de 1 casa decimal a custo zero e sem chamadas a APIs pagas externas.
+  3. **Segurança e Minimização LGPD (`f8-t5` / MAP-SEC-002):** Coordenadas exatas protegidas com anotação `WRITE_ONLY` na entidade `Usuario` e criação de `ProfessorBuscaResponseDTO` garantindo que latitude e longitude exatas nunca sejam expostas em respostas públicas.
+  4. **Busca Avançada por Modalidade e Raio (`f8-t4` / MAP-005):** Endpoint `GET /api/v1/usuarios/professores/busca` com filtros por disciplina, modalidade (`PRESENCIAL` / `ONLINE` / `TODAS`), raio em km (2, 5, 10, 20 km), preço máximo e fallback textual por bairro/região.
+  5. **Atualização da Área de Atendimento (`f8-t1` / MAP-002):** Endpoint `PUT /api/v1/usuarios/{id}/localizacao` permitindo ao professor configurar sua disponibilidade presencial, região e raio de atendimento.
+  6. **Testes Automatizados de Localização (`f8-t6`):** Suite completa em `LocalizacaoEHaversineTest.java` validando precisão de Haversine com coordenadas de referência conhecidas, clamping de raios máximos, formatação de proximidade e auditoria de reflexão garantindo que o DTO público não contém campos de latitude/longitude.
+
