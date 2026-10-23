@@ -52,7 +52,7 @@ public class UsuarioController {
         novoUsuario.setNome(dto.getNome());
         novoUsuario.setEmail(dto.getEmail());
         novoUsuario.setSenha(dto.getSenha());
-        novoUsuario.setTipo(dto.getTipo());
+        novoUsuario.setTipo(dto.getTipo() != null && !dto.getTipo().isBlank() ? dto.getTipo() : "ALUNO");
         novoUsuario.setCpf(dto.getCpf());
         novoUsuario.setDataNascimento(dto.getDataNascimento());
         novoUsuario.setBioAluno(dto.getBioAluno());
@@ -64,6 +64,17 @@ public class UsuarioController {
                 Map.of("email", novoUsuario.getEmail()),
                 "Código de verificação enviado para o e-mail: " + novoUsuario.getEmail()
         ));
+    }
+
+    @Operation(summary = "Reenviar código de verificação", description = "Dispara novamente o código de verificação para o e-mail informado.")
+    @PostMapping("/reenviar-verificacao")
+    public ResponseEntity<ApiResponse<Map<String, String>>> reenviarVerificacao(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("O e-mail é obrigatório.");
+        }
+        service.reenviarCodigoVerificacao(email);
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("email", email), "Código de verificação reenviado com sucesso!"));
     }
 
     @Operation(summary = "Verificação de e-mail com código OTP", description = "Confirma o código enviado e ativa o usuário no banco de dados.")

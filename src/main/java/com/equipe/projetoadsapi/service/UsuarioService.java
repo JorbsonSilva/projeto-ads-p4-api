@@ -42,6 +42,13 @@ public class UsuarioService {
     // Chave: e-mail do usuário | Valor: objeto com os dados + código gerado
     // =====================================================================
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UsuarioService.class);
+
+    // =====================================================================
+    // ESTADO INTERNO — Códigos de verificação pendentes
+    // Chave: e-mail do usuário | Valor: objeto com os dados + código gerado
+    // =====================================================================
+
     private final Map<String, VerificacaoPendente> codigosPendentes = new ConcurrentHashMap<>();
 
     /** Estrutura interna para guardar o usuário completo enquanto aguarda verificação. */
@@ -76,7 +83,44 @@ public class UsuarioService {
                         "Seu código de verificação é: " + codigo + "\n\n" +
                         "Este código é válido durante a sessão atual. Não compartilhe com ninguém."
         );
-        mailSender.send(msg);
+        try {
+            mailSender.send(msg);
+            log.info("E-mail com código de verificação enviado para {}", novoUsuario.getEmail());
+        } catch (Exception e) {
+            log.warn("AVISO: Falha ao despachar e-mail via SMTP ({}), mas código de verificação para [{}] gerado com sucesso: [{}]",
+                    e.getMessage(), novoUsuario.getEmail(), codigo);
+        }
+    }
+
+    /**
+     * REENVIAR CÓDIGO: Gera um novo código para uma verificação em andamento.
+     */
+    public void reenviarCodigoVerificacao(String email) {
+        VerificacaoPendente pendente = codigosPendentes.get(email);
+        Usuario usuario = (pendente != null) ? pendente.usuario() : repository.findByEmail(email);
+
+        if (usuario == null) {
+            throw new RuntimeException("Nenhum cadastro pendente ou usuário encontrado para este e-mail.");
+        }
+
+        String novoCodigo = String.format("%06d", new Random().nextInt(1_000_000));
+        codigosPendentes.put(email, new VerificacaoPendente(usuario, novoCodigo));
+
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setTo(email);
+        msg.setSubject("Novo Código de verificação - Orienta");
+        msg.setText(
+                "Olá, " + usuario.getNome() + "!\n\n" +
+                        "Seu novo código de verificação é: " + novoCodigo + "\n\n" +
+                        "Este código é válido durante a sessão atual. Não compartilhe com ninguém."
+        );
+        try {
+            mailSender.send(msg);
+            log.info("Novo e-mail com código de verificação reenviado para {}", email);
+        } catch (Exception e) {
+            log.warn("AVISO: Falha ao reenviar e-mail via SMTP ({}), mas novo código para [{}] é: [{}]",
+                    e.getMessage(), email, novoCodigo);
+        }
     }
 
     /**

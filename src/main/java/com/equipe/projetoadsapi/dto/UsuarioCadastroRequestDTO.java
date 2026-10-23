@@ -30,8 +30,8 @@ public class UsuarioCadastroRequestDTO {
     @Size(min = 6, max = 100, message = "A senha deve conter no mínimo 6 caracteres")
     private String senha;
 
-    @NotBlank(message = "O tipo de usuário (ALUNO ou PROFESSOR) é obrigatório")
-    private String tipo;
+    @Builder.Default
+    private String tipo = "ALUNO";
 
     @Size(max = 14, message = "O CPF não pode exceder 14 caracteres")
     private String cpf;

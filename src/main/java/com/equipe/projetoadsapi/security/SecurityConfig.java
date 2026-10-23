@@ -47,6 +47,9 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
+                // Preflight CORS (OPTIONS) deve ser sempre liberado
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // Documentação OpenAPI / Swagger (rotas v1 e raiz)
                 .requestMatchers(
                     "/v3/api-docs/**",
@@ -56,12 +59,13 @@ public class SecurityConfig {
                     "/api/v1/swagger-ui.html"
                 ).permitAll()
 
-                // Endpoints Públicos de Autenticação e Onboarding (v1 e legado)
+                // Endpoints Públicos de Autenticação e Onboarding (v1, legado e tolerância a prefixos)
                 .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST,
                     "/api/v1/usuarios/login", "/api/usuarios/login",
                     "/api/v1/usuarios/cadastro", "/api/usuarios/cadastro",
-                    "/api/v1/usuarios/verificar-email", "/api/usuarios/verificar-email"
+                    "/api/v1/usuarios/verificar-email", "/api/usuarios/verificar-email",
+                    "/api/v1/usuarios/reenviar-verificacao", "/api/usuarios/reenviar-verificacao"
                 ).permitAll()
                 
                 // Health Check e Diagnóstico
