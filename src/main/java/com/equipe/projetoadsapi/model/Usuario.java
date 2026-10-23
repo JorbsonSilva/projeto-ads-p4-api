@@ -70,6 +70,29 @@ public class Usuario {
     @Column(name = "total_avaliacoes")
     private Integer totalAvaliacoes = 0; // Começa com 0 avaliações
 
+    // =========================================================================
+    // LOCALIZAÇÃO E ATENDIMENTO PRESENCIAL (Fase 8 / MAP-001, MAP-002, LGPD)
+    // =========================================================================
+    @Builder.Default
+    @Column(name = "oferece_presencial")
+    private Boolean oferecePresencial = false;
+
+    @Column(name = "regiao_atendimento", length = 100)
+    private String regiaoAtendimento;
+
+    // Coordenadas protegidas no servidor - não expostas ao cliente (MAP-SEC-002)
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+    @Column(name = "latitude_aproximada")
+    private Double latitudeAproximada;
+
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+    @Column(name = "longitude_aproximada")
+    private Double longitudeAproximada;
+
+    @Builder.Default
+    @Column(name = "raio_atendimento_km")
+    private Integer raioAtendimentoKm = 10;
+
     // 🟢 CORREÇÃO: Envia a lista para o Front-end, mas quebra o loop infinito ignorando apenas o 'usuario' do outro lado
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties("usuario")
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true)
