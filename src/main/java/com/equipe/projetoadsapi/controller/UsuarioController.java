@@ -188,4 +188,39 @@ public class UsuarioController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(dtoList, "Professores em destaque recuperados"));
     }
+
+    @Operation(summary = "Busca avançada de professores com geolocalização e raio (Fase 8)", 
+               description = "Filtra por disciplina, modalidade (PRESENCIAL/ONLINE), raio aproximado (Haversine), região e preço máximo.")
+    @GetMapping("/professores/busca")
+    public ResponseEntity<ApiResponse<List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO>>> buscarProfessores(
+            @RequestParam(required = false) Long saberId,
+            @RequestParam(required = false, defaultValue = "TODAS") String modalidade,
+            @RequestParam(required = false) String termo,
+            @RequestParam(required = false) String regiao,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false, defaultValue = "10") Integer raioKm,
+            @RequestParam(required = false) Double precoMax
+    ) {
+        List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO> resultados = service.buscarProfessoresAvancado(
+                saberId, modalidade, termo, regiao, latitude, longitude, raioKm, precoMax
+        );
+        return ResponseEntity.ok(ApiResponse.ok(resultados, "Professores encontrados com sucesso"));
+    }
+
+    @Operation(summary = "Atualizar área de atendimento presencial e localização (Fase 8)", 
+               description = "Permite ao professor configurar sua região de atendimento, raio máximo e disponibilidade presencial.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PutMapping("/{id}/localizacao")
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarLocalizacao(
+            @PathVariable Long id,
+            @Valid @RequestBody com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO dto
+    ) {
+        ownershipService.validarPropriedadeUsuario(id);
+        Usuario atualizado = service.atualizarLocalizacaoProfessor(id, dto);
+        return ResponseEntity.ok(ApiResponse.ok(
+                UsuarioResponseDTO.fromEntity(atualizado),
+                "Área de atendimento e localização atualizadas com sucesso"
+        ));
+    }
 }

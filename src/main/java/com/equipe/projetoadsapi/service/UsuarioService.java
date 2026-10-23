@@ -37,6 +37,9 @@ public class UsuarioService {
     @Autowired
     private JavaMailSender mailSender;
 
+    @Autowired
+    private LocalizacaoService localizacaoService;
+
     // =====================================================================
     // ESTADO INTERNO — Códigos de verificação pendentes
     // Chave: e-mail do usuário | Valor: objeto com os dados + código gerado
@@ -334,6 +337,171 @@ public class UsuarioService {
         }
 
         return recomendados;
+    }
+
+    // =========================================================================
+    // FASE 8: BUSCA AVANÇADA POR LOCALIZAÇÃO, RAIO E MODALIDADE (MAP-001 a MAP-006)
+    // =========================================================================
+
+    /**
+     * Busca professores aplicando critérios de modalidade, proximidade geográfica (Haversine),
+     * filtro de região textual (sem GPS) e faixa de preço.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO> buscarProfessoresAvancado(
+            Long saberId,
+            String modalidade,
+            String termo,
+            String regiao,
+            Double latitudeAluno,
+            Double longitudeAluno,
+            Integer raioKm,
+            Double precoMax
+    ) {
+        String modalidadeNorm = (modalidade != null) ? modalidade.trim().toUpperCase() : "TODAS";
+        String termoNorm = (termo != null && !termo.isBlank()) ? termo.trim().toLowerCase() : null;
+        String regiaoNorm = (regiao != null && !regiao.isBlank()) ? regiao.trim().toLowerCase() : null;
+        int raioNormalizado = localizacaoService.normalizarRaio(raioKm);
+
+        boolean buscarComCoordenadas = (latitudeAluno != null && longitudeAluno != null);
+
+        // Record auxiliar para manter a tupla (Professor, Distância) durante a filtragem
+        record ItemComDistancia(Usuario professor, Double distanciaKm, String textoProximidade) {}
+
+        java.util.List<ItemComDistancia> listaFiltrada = new java.util.ArrayList<>();
+
+        // Todos os professores cadastrados no sistema com aptidões
+        java.util.List<Usuario> todosProfessores = repository.findAll().stream()
+                .filter(u -> u.getAptidoes() != null && !u.getAptidoes().isEmpty())
+                .collect(java.util.stream.Collectors.toList());
+
+        for (Usuario prof : todosProfessores) {
+            // 1. Filtro por Modalidade (MAP-001)
+            boolean oferecePresencial = (prof.getOferecePresencial() != null && prof.getOferecePresencial());
+            if ("PRESENCIAL".equals(modalidadeNorm) && !oferecePresencial) {
+                continue; // Pula professor que só dá aula online
+            }
+
+            // 2. Filtro por Disciplina / Saber (MAP-005)
+            if (saberId != null) {
+                boolean temSaber = prof.getAptidoes().stream()
+                        .anyMatch(a -> a.getSaber() != null && a.getSaber().getId().equals(saberId));
+                if (!temSaber) continue;
+            }
+
+            // 3. Filtro por Termo de Busca (Nome ou Saber)
+            if (termoNorm != null) {
+                boolean bateuNome = prof.getNome() != null && prof.getNome().toLowerCase().contains(termoNorm);
+                boolean bateuMateria = prof.getAptidoes().stream()
+                        .anyMatch(a -> a.getSaber() != null && a.getSaber().getNome() != null
+                                && a.getSaber().getNome().toLowerCase().contains(termoNorm));
+                if (!bateuNome && !bateuMateria) continue;
+            }
+
+            // 4. Filtro por Preço Máximo
+            if (precoMax != null && precoMax > 0) {
+                boolean temPrecoCompativel = prof.getAptidoes().stream()
+                        .anyMatch(a -> a.getPrecoHora() != null && a.getPrecoHora() <= precoMax);
+                if (!temPrecoCompativel) continue;
+            }
+
+            // 5. Cálculo de Distância Geográfica e Filtro de Raio (MAP-003, MAP-005, MAP-006)
+            Double distanciaKm = null;
+            String textoProximidade = null;
+
+            if (oferecePresencial && prof.getLatitudeAproximada() != null && prof.getLongitudeAproximada() != null) {
+                if (buscarComCoordenadas) {
+                    // Cálculo no servidor via Haversine a custo zero
+                    double dist = localizacaoService.calcularDistanciaHaversine(
+                            latitudeAluno, longitudeAluno,
+                            prof.getLatitudeAproximada(), prof.getLongitudeAproximada()
+                    );
+
+                    // Verifica se o professor está dentro do raio requisitado pelo aluno
+                    // e dentro do raio máximo de deslocamento do próprio professor
+                    int raioLimite = Math.min(raioNormalizado,
+                            prof.getRaioAtendimentoKm() != null ? prof.getRaioAtendimentoKm() : 50);
+
+                    if ("PRESENCIAL".equals(modalidadeNorm) && dist > raioLimite) {
+                        continue; // Exclui professores fora do raio de proximidade
+                    }
+
+                    distanciaKm = dist;
+                    textoProximidade = localizacaoService.formatarTextoProximidade(distanciaKm, prof.getRegiaoAtendimento());
+                } else if (regiaoNorm != null) {
+                    // Fallback sem GPS: busca textual por bairro ou região (MAP-008, MAP-SEC-002)
+                    boolean bateuRegiao = prof.getRegiaoAtendimento() != null
+                            && prof.getRegiaoAtendimento().toLowerCase().contains(regiaoNorm);
+                    if ("PRESENCIAL".equals(modalidadeNorm) && !bateuRegiao) {
+                        continue;
+                    }
+                    textoProximidade = localizacaoService.formatarTextoProximidade(null, prof.getRegiaoAtendimento());
+                } else {
+                    textoProximidade = localizacaoService.formatarTextoProximidade(null, prof.getRegiaoAtendimento());
+                }
+            } else if (oferecePresencial && prof.getRegiaoAtendimento() != null) {
+                if (regiaoNorm != null && "PRESENCIAL".equals(modalidadeNorm)) {
+                    boolean bateuRegiao = prof.getRegiaoAtendimento().toLowerCase().contains(regiaoNorm);
+                    if (!bateuRegiao) continue;
+                }
+                textoProximidade = localizacaoService.formatarTextoProximidade(null, prof.getRegiaoAtendimento());
+            } else {
+                textoProximidade = "Aulas Online";
+            }
+
+            listaFiltrada.add(new ItemComDistancia(prof, distanciaKm, textoProximidade));
+        }
+
+        // 6. Ordenação inteligente: Se busca por raio, ordena por proximidade; caso contrário, por nota média
+        if (buscarComCoordenadas && "PRESENCIAL".equals(modalidadeNorm)) {
+            listaFiltrada.sort((a, b) -> {
+                if (a.distanciaKm() == null && b.distanciaKm() == null) return 0;
+                if (a.distanciaKm() == null) return 1;
+                if (b.distanciaKm() == null) return -1;
+                return a.distanciaKm().compareTo(b.distanciaKm());
+            });
+        } else {
+            listaFiltrada.sort((a, b) -> {
+                Double notaA = a.professor().getNotaMedia() != null ? a.professor().getNotaMedia() : 0.0;
+                Double notaB = b.professor().getNotaMedia() != null ? b.professor().getNotaMedia() : 0.0;
+                return notaB.compareTo(notaA);
+            });
+        }
+
+        // 7. Mapeamento final para DTO sem expor coordenadas precisas (LGPD MAP-SEC-002)
+        return listaFiltrada.stream()
+                .map(item -> com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO.fromEntity(
+                        item.professor(), item.distanciaKm(), item.textoProximidade()
+                ))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Atualização da área de atendimento e modalidade presencial do professor (MAP-002, MAP-009).
+     */
+    @Transactional
+    public Usuario atualizarLocalizacaoProfessor(Long professorId, com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO dto) {
+        Usuario professor = repository.findById(professorId)
+                .orElseThrow(() -> new com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException(
+                        "Professor não encontrado com ID: " + professorId));
+
+        if (dto.getOferecePresencial() != null) {
+            professor.setOferecePresencial(dto.getOferecePresencial());
+        }
+        if (dto.getRegiaoAtendimento() != null) {
+            professor.setRegiaoAtendimento(dto.getRegiaoAtendimento().trim());
+        }
+        if (dto.getLatitudeAproximada() != null) {
+            professor.setLatitudeAproximada(dto.getLatitudeAproximada());
+        }
+        if (dto.getLongitudeAproximada() != null) {
+            professor.setLongitudeAproximada(dto.getLongitudeAproximada());
+        }
+        if (dto.getRaioAtendimentoKm() != null) {
+            professor.setRaioAtendimentoKm(localizacaoService.normalizarRaio(dto.getRaioAtendimentoKm()));
+        }
+
+        return repository.save(professor);
     }
 
     // Método auxiliar para buscar os melhores gerais do app

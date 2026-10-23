@@ -71,8 +71,11 @@ public class SecurityConfig {
                 // Health Check e Diagnóstico
                 .requestMatchers("/api/v1/health/**", "/api/health/**").permitAll()
                 
-                // Consulta pública de disciplinas/saberes
-                .requestMatchers(HttpMethod.GET, "/api/v1/saberes/**", "/api/saberes/**").permitAll()
+                // Consulta pública de disciplinas/saberes e busca de professores (Fase 8)
+                .requestMatchers(HttpMethod.GET, 
+                    "/api/v1/saberes/**", "/api/saberes/**",
+                    "/api/v1/usuarios/professores/busca", "/api/usuarios/professores/busca"
+                ).permitAll()
                 
                 // Endpoints Administrativos restritos a ADMIN
                 .requestMatchers("/api/v1/admin/**", "/api/admin/**").hasRole("ADMIN")
