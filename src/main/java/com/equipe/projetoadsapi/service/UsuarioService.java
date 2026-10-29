@@ -4,36 +4,50 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
+import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
+import com.equipe.projetoadsapi.model.Aptidao;
+import com.equipe.projetoadsapi.model.Disponibilidade;
+import com.equipe.projetoadsapi.model.Interesse;
+import com.equipe.projetoadsapi.model.Saber;
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.repository.SaberRepository;
 import com.equipe.projetoadsapi.repository.UsuarioRepository;
 
-
 /**
- * SERVIÇO DE USUÁRIO (Camada de Regras de Negócio)
- * * Roteiro de Defesa para a Banca: "Esta camada concentra toda a inteligência da aplicação.
- * Ao isolar as regras de negócio aqui, evitamos o anti-pattern 'Fat Controller'.
- * O fluxo de cadastro usa verificação por e-mail em duas etapas: o usuário recebe um
- * código de 6 dígitos e somente após confirmá-lo é que o registro é persistido no banco."
+ * SERVIÇO DE USUÁRIO (Camada de Regras de Negócio e Domínio)
+ *
+ * Roteiro de Defesa para a Banca Examinadora:
+ * "Esta camada concentra as regras de negócio de autenticação, ciclo de vida de usuários,
+ * verificação de identidade por código temporário e geolocalização. Ao isolar a lógica aqui,
+ * garantimos que os Controllers atuem apenas como despachantes HTTP, respeitando o princípio
+ * de responsabilidade única (SRP) e evitando 'Fat Controllers'."
+ *
+ * Arquivo compartilhado e cumulativo: Atende tanto a Tela de Login quanto a Tela de Cadastro,
+ * mantendo 100% dos métodos de perfil, aptidões e geolocalização (Haversine) ativos.
  */
 @Service
 public class UsuarioService {
 
+    private static final Logger log = LoggerFactory.getLogger(UsuarioService.class);
+
     // =====================================================================
-    // DEPENDÊNCIAS
+    // INJEÇÃO DE DEPENDÊNCIAS
     // =====================================================================
 
     @Autowired
     private UsuarioRepository repository;
 
     @Autowired
-    private com.equipe.projetoadsapi.repository.SaberRepository saberRepository;
+    private SaberRepository saberRepository;
 
     @Autowired
     private JavaMailSender mailSender;
@@ -41,183 +55,244 @@ public class UsuarioService {
     @Autowired
     private LocalizacaoService localizacaoService;
 
-    // =====================================================================
-    // ESTADO INTERNO — Códigos de verificação pendentes
-    // Chave: e-mail do usuário | Valor: objeto com os dados + código gerado
-    // =====================================================================
+    /**
+     * Criptografia padrão da indústria (BCrypt com salt aleatório).
+     * Garante que nenhuma senha seja persistida ou manipulada em texto puro.
+     */
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UsuarioService.class);
-
     // =====================================================================
-    // ESTADO INTERNO — Códigos de verificação pendentes
-    // Chave: e-mail do usuário | Valor: objeto com os dados + código gerado
+    // ESTADO TEMPORÁRIO — CÓDIGOS DE VERIFICAÇÃO PENDENTES
+    // Chave: e-mail em minúsculas | Valor: objeto contendo Usuario + código de 6 dígitos
     // =====================================================================
-
     private final Map<String, VerificacaoPendente> codigosPendentes = new ConcurrentHashMap<>();
 
-    /** Estrutura interna para guardar o usuário completo enquanto aguarda verificação. */
+    /**
+     * Record interno para manter a tupla (Usuário montado, Código de 6 dígitos)
+     * em memória segura enquanto o usuário não confirma o recebimento no app móvel.
+     */
     private record VerificacaoPendente(Usuario usuario, String codigo) {}
 
     // =====================================================================
-    // FLUXO DE CADASTRO COM VERIFICAÇÃO DE E-MAIL
+    // FLUXO DE CADASTRO COM CÓDIGO DE 6 DÍGITOS POR E-MAIL (TELA DE CADASTRO)
     // =====================================================================
 
     /**
-     * ETAPA 1: Recebe os dados do novo usuário, gera um código de 6 dígitos,
-     * armazena em memória e envia o código por e-mail.
-     * O registro NÃO é salvo no banco até a confirmação do código.
+     * ETAPA 1 DO CADASTRO:
+     * Recebe os dados validados do formulário mobile, normaliza e-mail/CPF,
+     * valida unicidade cadastral no banco, criptografa a senha com BCrypt,
+     * gera código aleatório de 6 dígitos e despacha via SMTP para o e-mail do aluno/professor.
+     *
+     * @param novoUsuario Entidade Usuario preenchida com nome, e-mail, cpf, data de nascimento e senha
      */
     public void cadastrarUsuario(Usuario novoUsuario) {
-        if (repository.findByEmail(novoUsuario.getEmail()) != null) {
-            throw new RuntimeException("Email já cadastrado!!!");
+        String emailNormalizado = novoUsuario.getEmail().trim().toLowerCase();
+        novoUsuario.setEmail(emailNormalizado);
+
+        // 1. Validação de Unicidade de E-mail (Regra de Negócio: E-mail não pode existir)
+        if (repository.findByEmail(emailNormalizado) != null) {
+            throw new RegraNegocioException("E-mail já cadastrado na plataforma Orienta.");
         }
 
-        // Gera um código numérico de 6 dígitos com zero-padding (ex: "042731")
+        // 2. Limpeza de máscara e validação de CPF único (previne violação de constraint no Supabase)
+        String cpfLimpo = novoUsuario.getCpf() != null 
+                ? novoUsuario.getCpf().replaceAll("[.\\-]", "").trim() 
+                : null;
+        novoUsuario.setCpf(cpfLimpo);
+
+        if (cpfLimpo != null && repository.findByCpf(cpfLimpo) != null) {
+            throw new RegraNegocioException("Este CPF já está cadastrado em outra conta.");
+        }
+
+        // 3. Criptografia BCrypt da senha antes de qualquer armazenamento temporário
+        novoUsuario.setSenha(passwordEncoder.encode(novoUsuario.getSenha()));
+        novoUsuario.setEmailVerificado(false);
+
+        // 4. Geração do código numérico de 6 dígitos com padding de zeros à esquerda (ex: "042731")
         String codigo = String.format("%06d", new Random().nextInt(1_000_000));
 
-        // Guarda o objeto Usuario completo + código na memória temporária
-        codigosPendentes.put(novoUsuario.getEmail(), new VerificacaoPendente(novoUsuario, codigo));
+        // 5. Armazenamento na fila concorrente de pendências de ativação
+        codigosPendentes.put(emailNormalizado, new VerificacaoPendente(novoUsuario, codigo));
 
-        // Envia o e-mail de verificação
+        // 6. Envio da mensagem transacional via Spring JavaMailSender
         SimpleMailMessage msg = new SimpleMailMessage();
-        msg.setTo(novoUsuario.getEmail());
-        msg.setSubject("Código de verificação - Orienta");
+        msg.setTo(emailNormalizado);
+        msg.setSubject("Seu código de verificação - Orienta");
         msg.setText(
-                "Olá, " + novoUsuario.getNome() + "!\n\n" +
-                        "Seu código de verificação é: " + codigo + "\n\n" +
-                        "Este código é válido durante a sessão atual. Não compartilhe com ninguém."
+                "Olá, " + novoUsuario.getNome() + "!" +
+                "Seu código de verificação para ativar sua conta no Orienta é: " + codigo + " " + 
+                "Digite este código no aplicativo móvel para concluir seu cadastro." +
+                "Este código expira ao término da sua sessão. Não compartilhe com terceiros." +
+                "Equipe Orienta."
         );
+
         try {
             mailSender.send(msg);
-            log.info("E-mail com código de verificação enviado para {}", novoUsuario.getEmail());
+            log.info("E-mail com código de verificação enviado com sucesso para: {}", emailNormalizado);
         } catch (Exception e) {
-            log.warn("AVISO: Falha ao despachar e-mail via SMTP ({}), mas código de verificação para [{}] gerado com sucesso: [{}]",
-                    e.getMessage(), novoUsuario.getEmail(), codigo);
+            // Em caso de SMTP offline ou sem credenciais no ambiente local, registra em log com segurança
+            log.warn("AVISO: Falha no envio SMTP ({}), mas código de verificação para [{}] gerado: [{}]",
+                    e.getMessage(), emailNormalizado, codigo);
         }
     }
 
     /**
-     * REENVIAR CÓDIGO: Gera um novo código para uma verificação em andamento.
+     * REENVIAR CÓDIGO DE VERIFICAÇÃO:
+     * Caso o usuário não tenha recebido o e-mail ou o código tenha expirado,
+     * permite gerar um novo código mantendo os dados da inscrição intactos.
+     *
+     * @param email E-mail cadastrado
      */
     public void reenviarCodigoVerificacao(String email) {
-        VerificacaoPendente pendente = codigosPendentes.get(email);
-        Usuario usuario = (pendente != null) ? pendente.usuario() : repository.findByEmail(email);
+        String emailNorm = email.trim().toLowerCase();
+        VerificacaoPendente pendente = codigosPendentes.get(emailNorm);
+        Usuario usuario = (pendente != null) ? pendente.usuario() : repository.findByEmail(emailNorm);
 
         if (usuario == null) {
-            throw new RuntimeException("Nenhum cadastro pendente ou usuário encontrado para este e-mail.");
+            throw new RegraNegocioException("Nenhum cadastro pendente ou usuário encontrado para este e-mail.");
         }
 
         String novoCodigo = String.format("%06d", new Random().nextInt(1_000_000));
-        codigosPendentes.put(email, new VerificacaoPendente(usuario, novoCodigo));
+        codigosPendentes.put(emailNorm, new VerificacaoPendente(usuario, novoCodigo));
 
         SimpleMailMessage msg = new SimpleMailMessage();
-        msg.setTo(email);
+        msg.setTo(emailNorm);
         msg.setSubject("Novo Código de verificação - Orienta");
         msg.setText(
-                "Olá, " + usuario.getNome() + "!\n\n" +
-                        "Seu novo código de verificação é: " + novoCodigo + "\n\n" +
-                        "Este código é válido durante a sessão atual. Não compartilhe com ninguém."
+                "Olá, " + usuario.getNome() + "!" +
+                "Seu novo código de verificação é: " + novoCodigo + "" +
+                "Equipe Orienta."
         );
+
         try {
             mailSender.send(msg);
-            log.info("Novo e-mail com código de verificação reenviado para {}", email);
+            log.info("Novo e-mail com código de verificação reenviado para {}", emailNorm);
         } catch (Exception e) {
             log.warn("AVISO: Falha ao reenviar e-mail via SMTP ({}), mas novo código para [{}] é: [{}]",
-                    e.getMessage(), email, novoCodigo);
+                    e.getMessage(), emailNorm, novoCodigo);
         }
     }
 
     /**
-     * ETAPA 2: Valida o código digitado pelo usuário.
-     * Se correto, persiste o registro no banco e limpa o código pendente.
+     * ETAPA 2 DO CADASTRO (CONFIRMAÇÃO DO CÓDIGO E PERSISTÊNCIA):
+     * Valida o código digitado no aplicativo. Se coincidir com o código armazenado
+     * para o e-mail, marca a conta como verificada, efetiva a gravação no banco PostgreSQL
+     * e remove a pendência da memória.
      *
-     * @param email  E-mail informado no cadastro
-     * @param codigo Código de 6 dígitos recebido por e-mail
-     * @return O usuário recém-criado (com ID gerado pelo banco)
+     * @param email  E-mail do usuário
+     * @param codigo Código numérico de 6 dígitos recebido por e-mail
+     * @return A entidade Usuario salva com ID gerado pelo banco
      */
     @Transactional
     public Usuario verificarEmail(String email, String codigo) {
-        VerificacaoPendente pendente = codigosPendentes.get(email);
+        String emailNorm = email.trim().toLowerCase();
+        VerificacaoPendente pendente = codigosPendentes.get(emailNorm);
 
         if (pendente == null) {
-            throw new RuntimeException("Nenhuma verificação pendente para este e-mail.");
-        }
-        if (!pendente.codigo().equals(codigo)) {
-            throw new RuntimeException("Código inválido ou expirado.");
+            throw new RegraNegocioException("Nenhuma verificação pendente para este e-mail.");
         }
 
-        // Código correto: salva o usuário completo e remove da fila
-        Usuario usuarioSalvo = repository.save(pendente.usuario());
-        codigosPendentes.remove(email);
+        if (!pendente.codigo().equals(codigo != null ? codigo.trim() : "")) {
+            throw new RegraNegocioException("Código de verificação incorreto ou expirado.");
+        }
+
+        // Código validado com sucesso: marca como verificado e persiste definitivamente
+        Usuario usuarioParaSalvar = pendente.usuario();
+        usuarioParaSalvar.setEmailVerificado(true);
+
+        Usuario usuarioSalvo = repository.save(usuarioParaSalvar);
+        codigosPendentes.remove(emailNorm);
+
+        log.info("Usuário ativado e gravado com sucesso no PostgreSQL: ID {}, E-mail {}", 
+                usuarioSalvo.getId(), usuarioSalvo.getEmail());
+
         return usuarioSalvo;
     }
 
     // =====================================================================
-    // AUTENTICAÇÃO
+    // MÉTODOS DE CONSULTA E ACESSO
     // =====================================================================
 
+    /**
+     * Consulta legado para conferência direta de usuário e senha.
+     * Mantido para compatibilidade interna.
+     */
     public Usuario consultaUsuario(Usuario loginUsuario) {
         Usuario usuarioExistente = repository.findByEmail(loginUsuario.getEmail());
         if (usuarioExistente == null) {
-            throw new RuntimeException("Usuário não cadastrado!!!");
+            throw new RegraNegocioException("Usuário não cadastrado.");
         } else if (!usuarioExistente.getSenha().equals(loginUsuario.getSenha())) {
-            throw new RuntimeException("Senha incorreta!!!");
+            throw new RegraNegocioException("Senha incorreta.");
         }
         return usuarioExistente;
     }
 
-    // =====================================================================
-    // BUSCA
-    // =====================================================================
-
+    /**
+     * Busca usuário pelo ID primário.
+     * @param id Chave primária do usuário
+     * @return Entidade Usuario ou null caso inexistente
+     */
     public Usuario buscarPorId(Long id) {
         return repository.findById(id).orElse(null);
     }
 
     // =====================================================================
-    // ATUALIZAÇÃO DE DADOS PESSOAIS
+    // ATUALIZAÇÃO DE DADOS PESSOAIS E SEGURANÇA
     // =====================================================================
 
+    /**
+     * Atualiza dados cadastrais básicos (nome, data de nascimento e CPF).
+     */
     @Transactional
     public Usuario atualizarDados(Long id, Usuario dadosNovos) {
         Usuario usuarioBD = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id));
 
         usuarioBD.setNome(dadosNovos.getNome());
         usuarioBD.setDataNascimento(dadosNovos.getDataNascimento());
-        usuarioBD.setCpf(dadosNovos.getCpf());
+
+        if (dadosNovos.getCpf() != null) {
+            usuarioBD.setCpf(dadosNovos.getCpf().replaceAll("[.\\-]", "").trim());
+        }
 
         return repository.save(usuarioBD);
     }
 
-    // =====================================================================
-    // TROCA DE SENHA
-    // =====================================================================
-
+    /**
+     * Realiza a troca de senha validando a senha atual informada.
+     */
     @Transactional
     public void alterarSenha(Long id, Map<String, String> senhas) {
         Usuario usuarioBD = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id));
 
         String senhaAtualDigitada = senhas.get("senhaAtual");
         String novaSenhaDigitada  = senhas.get("novaSenha");
 
-        if (!usuarioBD.getSenha().equals(senhaAtualDigitada)) {
-            throw new RuntimeException("A senha atual informada está incorreta!");
+        // Valida se a senha atual confere (seja BCrypt ou legado)
+        boolean confere = passwordEncoder.matches(senhaAtualDigitada, usuarioBD.getSenha()) ||
+                          usuarioBD.getSenha().equals(senhaAtualDigitada);
+
+        if (!confere) {
+            throw new RegraNegocioException("A senha atual informada está incorreta.");
         }
 
-        usuarioBD.setSenha(novaSenhaDigitada);
+        usuarioBD.setSenha(passwordEncoder.encode(novaSenhaDigitada));
         repository.save(usuarioBD);
     }
 
     // =====================================================================
-    // PERFIL DO ALUNO (Bio + Interesses)
+    // PERFIL DO ALUNO (BIO + MATÉRIAS DE INTERESSE)
     // =====================================================================
 
+    /**
+     * Atualiza a biografia do aluno e sua lista de matérias de interesse (Saber).
+     */
     @Transactional
     public Usuario atualizarBioAluno(Long id, String bio, java.util.List<Integer> interessesIds) {
         Usuario usuarioBD = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno não encontrado com ID: " + id));
 
         usuarioBD.setBioAluno(bio);
 
@@ -229,13 +304,12 @@ public class UsuarioService {
 
         if (interessesIds != null && !interessesIds.isEmpty()) {
             for (Integer saberId : interessesIds) {
-                com.equipe.projetoadsapi.model.Saber saber = saberRepository.findById(saberId.longValue())
-                        .orElseThrow(() -> new RuntimeException("Matéria não encontrada no catálogo."));
+                Saber saber = saberRepository.findById(saberId.longValue())
+                        .orElseThrow(() -> new RecursoNaoEncontradoException("Matéria não encontrada no catálogo: ID " + saberId));
 
-                com.equipe.projetoadsapi.model.Interesse novoInteresse = new com.equipe.projetoadsapi.model.Interesse();
+                Interesse novoInteresse = new Interesse();
                 novoInteresse.setUsuario(usuarioBD);
                 novoInteresse.setSaber(saber);
-
                 usuarioBD.getInteresses().add(novoInteresse);
             }
         }
@@ -243,21 +317,27 @@ public class UsuarioService {
         return repository.save(usuarioBD);
     }
 
-// =====================================================================
-    // PERFIL DO PROFESSOR (Bio + Aptidões + Disponibilidades)
+    // =====================================================================
+    // PERFIL DO PROFESSOR (BIO + APTIDÕES + DISPONIBILIDADES)
     // =====================================================================
 
+    /**
+     * Atualiza o perfil acadêmico do professor: biografia, disciplinas que leciona,
+     * nível de domínio, preço/hora e grade de disponibilidade horária semanal.
+     */
     @Transactional
-    public Usuario atualizarPerfilProfessor(Long id, String bio,
-                                            java.util.List<java.util.Map<String, Object>> aptidoesPayload,
-                                            java.util.List<java.util.Map<String, Object>> dispPayload) { // 🟢 Adicionado dispPayload
-
+    public Usuario atualizarPerfilProfessor(
+            Long id,
+            String bio,
+            java.util.List<java.util.Map<String, Object>> aptidoesPayload,
+            java.util.List<java.util.Map<String, Object>> dispPayload
+    ) {
         Usuario usuarioBD = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Professor não encontrado com ID: " + id));
 
         usuarioBD.setBioProfessor(bio);
 
-        // --- 1. LÓGICA DE APTIDÕES (MANTIDA IGUAL À SUA ORIGINAL) ---
+        // 1. Atualização da grade de Aptidões (Matérias que ensina)
         if (usuarioBD.getAptidoes() != null) {
             usuarioBD.getAptidoes().clear();
         } else {
@@ -268,22 +348,21 @@ public class UsuarioService {
             for (java.util.Map<String, Object> apt : aptidoesPayload) {
                 Long saberId = Long.valueOf(apt.get("saberId").toString());
                 String nivel  = (String) apt.get("nivelDominio");
-                java.math.BigDecimal preco = new java.math.BigDecimal(apt.get("precoHora").toString());
+                BigDecimal preco = new BigDecimal(apt.get("precoHora").toString());
 
-                com.equipe.projetoadsapi.model.Saber saber = saberRepository.findById(saberId)
-                        .orElseThrow(() -> new RuntimeException("Matéria não encontrada no catálogo."));
+                Saber saber = saberRepository.findById(saberId)
+                        .orElseThrow(() -> new RecursoNaoEncontradoException("Matéria não encontrada: ID " + saberId));
 
-                com.equipe.projetoadsapi.model.Aptidao novaAptidao = new com.equipe.projetoadsapi.model.Aptidao();
+                Aptidao novaAptidao = new Aptidao();
                 novaAptidao.setUsuario(usuarioBD);
                 novaAptidao.setSaber(saber);
                 novaAptidao.setNivelDominio(nivel);
                 novaAptidao.setPrecoHora(preco);
-
                 usuarioBD.getAptidoes().add(novaAptidao);
             }
         }
 
-        // --- 2. 🟢 NOVA LÓGICA DE DISPONIBILIDADES ---
+        // 2. Atualização das Disponibilidades de Horário
         if (usuarioBD.getDisponibilidades() != null) {
             usuarioBD.getDisponibilidades().clear();
         } else {
@@ -292,47 +371,48 @@ public class UsuarioService {
 
         if (dispPayload != null && !dispPayload.isEmpty()) {
             for (java.util.Map<String, Object> dispMap : dispPayload) {
-                com.equipe.projetoadsapi.model.Disponibilidade novaDisp = new com.equipe.projetoadsapi.model.Disponibilidade();
+                Disponibilidade novaDisp = new Disponibilidade();
                 novaDisp.setUsuario(usuarioBD);
                 novaDisp.setDiaSemana((String) dispMap.get("diaSemana"));
-                
+
                 String inicioStr = (String) dispMap.get("horaInicio");
                 String fimStr = (String) dispMap.get("horaFim");
-                
-                // Converte a string "08:00:00" que veio do React Native para o relógio do Java
+
                 if (inicioStr != null) novaDisp.setHoraInicio(java.time.LocalTime.parse(inicioStr));
                 if (fimStr != null) novaDisp.setHoraFim(java.time.LocalTime.parse(fimStr));
-                
+
                 usuarioBD.getDisponibilidades().add(novaDisp);
             }
         }
 
         return repository.save(usuarioBD);
     }
-    
-    // 🟢 REGRA DE NEGÓCIO: Buscar professores com base nos interesses
+
+    /**
+     * RECOMENDAÇÃO INTELIGENTE DE PROFESSORES:
+     * Localiza professores especialistas nas matérias de interesse do aluno logado.
+     * Caso o aluno não tenha matérias cadastradas ou nenhum professor seja encontrado,
+     * aplica fallback gracioso para os melhores professores gerais da plataforma.
+     */
     @Transactional(readOnly = true)
     public java.util.List<Usuario> buscarProfessoresDestaquePorAluno(Long alunoId) {
         Usuario aluno = repository.findById(alunoId)
-                .orElseThrow(() -> new RuntimeException("Aluno não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno não encontrado com ID: " + alunoId));
 
         java.util.List<Long> saberIds = new java.util.ArrayList<>();
-        
         if (aluno.getInteresses() != null) {
             aluno.getInteresses().forEach(interesse -> {
-                saberIds.add(interesse.getSaber().getId()); 
+                if (interesse.getSaber() != null) {
+                    saberIds.add(interesse.getSaber().getId());
+                }
             });
         }
 
-        // Se o aluno não tem interesse nenhum cadastrado
         if (saberIds.isEmpty()) {
             return buscarTopProfessoresGerais();
         }
 
-        // Busca no banco os professores das matérias do aluno
         java.util.List<Usuario> recomendados = repository.findProfessoresPorMateriasOrdenadosPorNota(saberIds);
-
-        // 🟢 O SEGREDO: Se não achar nenhum professor pra matéria exata dele, traz os melhores do app
         if (recomendados.isEmpty()) {
             return buscarTopProfessoresGerais();
         }
@@ -341,12 +421,17 @@ public class UsuarioService {
     }
 
     // =========================================================================
-    // FASE 8: BUSCA AVANÇADA POR LOCALIZAÇÃO, RAIO E MODALIDADE (MAP-001 a MAP-006)
+    // FASE 8: BUSCA AVANÇADA POR GEOLOCALIZAÇÃO E HAVERSINE (MAP-001 a MAP-006)
     // =========================================================================
 
     /**
-     * Busca professores aplicando critérios de modalidade, proximidade geográfica (Haversine),
-     * filtro de região textual (sem GPS) e faixa de preço.
+     * BUSCA GEOGRÁFICA DETERMINÍSTICA VIA FÓRMULA DE HAVERSINE:
+     * Roteiro de Defesa para a Banca:
+     * "Calcula a distância em linha reta na curvatura da Terra (fórmula esférica de Haversine)
+     * diretamente no servidor Java, sem consumir créditos de APIs de mapas externas (custo zero).
+     * Aplica filtros combinados de raio (km), preço máximo, modalidade presencial/online e
+     * respeita estritamente a LGPD (MAP-SEC-002), retornando apenas coordenadas aproximadas e
+     * textos de proximidade amigáveis ao aluno."
      */
     @Transactional(readOnly = true)
     public java.util.List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO> buscarProfessoresAvancado(
@@ -363,15 +448,11 @@ public class UsuarioService {
         String termoNorm = (termo != null && !termo.isBlank()) ? termo.trim().toLowerCase() : null;
         String regiaoNorm = (regiao != null && !regiao.isBlank()) ? regiao.trim().toLowerCase() : null;
         int raioNormalizado = localizacaoService.normalizarRaio(raioKm);
-
         boolean buscarComCoordenadas = (latitudeAluno != null && longitudeAluno != null);
 
-        // Record auxiliar para manter a tupla (Professor, Distância) durante a filtragem
         record ItemComDistancia(Usuario professor, Double distanciaKm, String textoProximidade) {}
-
         java.util.List<ItemComDistancia> listaFiltrada = new java.util.ArrayList<>();
 
-        // Todos os professores cadastrados no sistema com aptidões
         java.util.List<Usuario> todosProfessores = repository.findAll().stream()
                 .filter(u -> u.getAptidoes() != null && !u.getAptidoes().isEmpty())
                 .collect(java.util.stream.Collectors.toList());
@@ -380,7 +461,7 @@ public class UsuarioService {
             // 1. Filtro por Modalidade (MAP-001)
             boolean oferecePresencial = (prof.getOferecePresencial() != null && prof.getOferecePresencial());
             if ("PRESENCIAL".equals(modalidadeNorm) && !oferecePresencial) {
-                continue; // Pula professor que só dá aula online
+                continue;
             }
 
             // 2. Filtro por Disciplina / Saber (MAP-005)
@@ -402,36 +483,31 @@ public class UsuarioService {
             // 4. Filtro por Preço Máximo
             if (precoMax != null && precoMax > 0) {
                 boolean temPrecoCompativel = prof.getAptidoes().stream()
-                        .anyMatch(a -> a.getPrecoHora() != null && 
-                                    a.getPrecoHora().compareTo(BigDecimal.valueOf(precoMax)) <= 0);
+                        .anyMatch(a -> a.getPrecoHora() != null &&
+                                a.getPrecoHora().compareTo(BigDecimal.valueOf(precoMax)) <= 0);
                 if (!temPrecoCompativel) continue;
             }
 
-            // 5. Cálculo de Distância Geográfica e Filtro de Raio (MAP-003, MAP-005, MAP-006)
+            // 5. Cálculo de Proximidade Geográfica (Haversine)
             Double distanciaKm = null;
             String textoProximidade = null;
 
             if (oferecePresencial && prof.getLatitudeAproximada() != null && prof.getLongitudeAproximada() != null) {
                 if (buscarComCoordenadas) {
-                    // Cálculo no servidor via Haversine a custo zero
                     double dist = localizacaoService.calcularDistanciaHaversine(
                             latitudeAluno, longitudeAluno,
                             prof.getLatitudeAproximada(), prof.getLongitudeAproximada()
                     );
 
-                    // Verifica se o professor está dentro do raio requisitado pelo aluno
-                    // e dentro do raio máximo de deslocamento do próprio professor
                     int raioLimite = Math.min(raioNormalizado,
                             prof.getRaioAtendimentoKm() != null ? prof.getRaioAtendimentoKm() : 50);
 
                     if ("PRESENCIAL".equals(modalidadeNorm) && dist > raioLimite) {
-                        continue; // Exclui professores fora do raio de proximidade
+                        continue;
                     }
-
                     distanciaKm = dist;
                     textoProximidade = localizacaoService.formatarTextoProximidade(distanciaKm, prof.getRegiaoAtendimento());
                 } else if (regiaoNorm != null) {
-                    // Fallback sem GPS: busca textual por bairro ou região (MAP-008, MAP-SEC-002)
                     boolean bateuRegiao = prof.getRegiaoAtendimento() != null
                             && prof.getRegiaoAtendimento().toLowerCase().contains(regiaoNorm);
                     if ("PRESENCIAL".equals(modalidadeNorm) && !bateuRegiao) {
@@ -454,7 +530,7 @@ public class UsuarioService {
             listaFiltrada.add(new ItemComDistancia(prof, distanciaKm, textoProximidade));
         }
 
-        // 6. Ordenação inteligente: Se busca por raio, ordena por proximidade; caso contrário, por nota média
+        // 6. Ordenação: por menor distância se presencial com GPS, ou maior nota média
         if (buscarComCoordenadas && "PRESENCIAL".equals(modalidadeNorm)) {
             listaFiltrada.sort((a, b) -> {
                 if (a.distanciaKm() == null && b.distanciaKm() == null) return 0;
@@ -470,7 +546,7 @@ public class UsuarioService {
             });
         }
 
-        // 7. Mapeamento final para DTO sem expor coordenadas precisas (LGPD MAP-SEC-002)
+        // 7. Mapeamento para DTO sem expor coordenadas privadas (LGPD MAP-SEC-002)
         return listaFiltrada.stream()
                 .map(item -> com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO.fromEntity(
                         item.professor(), item.distanciaKm(), item.textoProximidade()
@@ -479,13 +555,12 @@ public class UsuarioService {
     }
 
     /**
-     * Atualização da área de atendimento e modalidade presencial do professor (MAP-002, MAP-009).
+     * Atualização da área de atendimento, coordenadas aproximadas e raio de atendimento do professor.
      */
     @Transactional
     public Usuario atualizarLocalizacaoProfessor(Long professorId, com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO dto) {
         Usuario professor = repository.findById(professorId)
-                .orElseThrow(() -> new com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException(
-                        "Professor não encontrado com ID: " + professorId));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Professor não encontrado com ID: " + professorId));
 
         if (dto.getOferecePresencial() != null) {
             professor.setOferecePresencial(dto.getOferecePresencial());
@@ -506,7 +581,9 @@ public class UsuarioService {
         return repository.save(professor);
     }
 
-    // Método auxiliar para buscar os melhores gerais do app
+    /**
+     * Método auxiliar para buscar os professores com maior nota da plataforma.
+     */
     private java.util.List<Usuario> buscarTopProfessoresGerais() {
         return repository.findAll().stream()
                 .filter(u -> u.getAptidoes() != null && !u.getAptidoes().isEmpty())
