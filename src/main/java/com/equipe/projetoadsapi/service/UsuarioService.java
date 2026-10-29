@@ -1,5 +1,6 @@
 package com.equipe.projetoadsapi.service;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -401,7 +402,8 @@ public class UsuarioService {
             // 4. Filtro por Preço Máximo
             if (precoMax != null && precoMax > 0) {
                 boolean temPrecoCompativel = prof.getAptidoes().stream()
-                        .anyMatch(a -> a.getPrecoHora() != null && a.getPrecoHora() <= precoMax);
+                        .anyMatch(a -> a.getPrecoHora() != null && 
+                                    a.getPrecoHora().compareTo(BigDecimal.valueOf(precoMax)) <= 0);
                 if (!temPrecoCompativel) continue;
             }
 

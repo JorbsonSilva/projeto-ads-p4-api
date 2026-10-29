@@ -78,6 +78,7 @@ public class LocalizacaoEHaversineTest {
     @Test
     @DisplayName("Formatação de Proximidade: Deve exibir texto aproximado sem expor endereço residencial")
     void testFormatacaoProximidadeAmigavel() {
+        // Correção: Garantimos que o double é lido corretamente pelo service e testado como String
         String textoComDistancia = localizacaoService.formatarTextoProximidade(3.4, "Boa Viagem");
         assertTrue(textoComDistancia.contains("3.4 km") || textoComDistancia.contains("3,4 km"));
 
@@ -102,7 +103,16 @@ public class LocalizacaoEHaversineTest {
                 .build();
 
         Saber saber = new Saber(1L, "Cálculo I", "Matemática");
-        Aptidao apt = new Aptidao(1L, prof, saber, 90.0, "Avançado");
+        
+        // A utilização de instanciacão vazia com setters previne erros de ordem no construtor
+        // e garante a passagem correta do valor monetário como BigDecimal.
+        Aptidao apt = new Aptidao();
+        apt.setId(1L);
+        apt.setUsuario(prof);
+        apt.setSaber(saber);
+        apt.setNivelDominio("Avançado");
+        apt.setPrecoHora(java.math.BigDecimal.valueOf(90.0));
+        
         prof.setAptidoes(List.of(apt));
 
         ProfessorBuscaResponseDTO dto = ProfessorBuscaResponseDTO.fromEntity(prof, 4.2, "Aprox. 4.2 km");

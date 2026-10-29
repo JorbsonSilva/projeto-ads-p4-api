@@ -82,11 +82,11 @@ public class Usuario {
 
     // Coordenadas protegidas no servidor - não expostas ao cliente (MAP-SEC-002)
     @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
-    @Column(name = "latitude_aproximada")
+    @Column(name = "latitude_aproximada", columnDefinition = "numeric")
     private Double latitudeAproximada;
 
     @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
-    @Column(name = "longitude_aproximada")
+    @Column(name = "longitude_aproximada", columnDefinition = "numeric")
     private Double longitudeAproximada;
 
     @Builder.Default

@@ -40,25 +40,26 @@ public class BancaFlowIntegrationTest {
                 .andExpect(status().is2xxSuccessful());
     }
 
-    @Test
-    @DisplayName("F10-T3: Triagem determinística do assistente sem alucinação")
-    void testAssistantDeterministicTriage() throws Exception {
-        TriageRequestDTO request = new TriageRequestDTO(
-                TriageStep.TOPIC_SELECTION,
-                "Cálculo I",
-                "Derivadas",
-                "ONLINE",
-                BigDecimal.valueOf(65.00),
-                "Quero agendar aula de cálculo"
-        );
+        @Test
+            @DisplayName("F10-T3: Triagem determinística do assistente sem alucinação")
+            void testAssistantDeterministicTriage() throws Exception {
+                
+                // Substituição do construtor inexistente pelos setters corretos do TriageRequestDTO
+                TriageRequestDTO request = new TriageRequestDTO();
+                request.setCurrentStep(TriageStep.TOPIC_SELECTION);
+                request.setDisciplinaNome("Cálculo I");
+                request.setAssuntoNome("Derivadas");
+                request.setModalidade("ONLINE");
+                request.setOrcamentoMaximo(BigDecimal.valueOf(65.00));
+                request.setUserMessage("Quero agendar aula de cálculo");
 
-        mockMvc.perform(post("/api/v1/assistente/triagem")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.proximoPasso").value("RECOMMENDATION"))
-                .andExpect(jsonPath("$.actionCard").exists());
-    }
+                mockMvc.perform(post("/api/v1/assistente/triagem")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.proximoPasso").value("RECOMMENDATION"))
+                        .andExpect(jsonPath("$.actionCard").exists());
+            }
 
     @Test
     @DisplayName("F10-T4: Bloqueio de segurança — Acesso sem token deve retornar 401")

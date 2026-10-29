@@ -50,17 +50,24 @@ public class ProfessorBuscaResponseDTO {
         private String nivelDominio;
     }
 
+    /**
+     * Método estático para converter a entidade Usuario no DTO de Busca.
+     * Aqui resolvemos a conversão de BigDecimal (Banco) para Double (JSON).
+     */
     public static ProfessorBuscaResponseDTO fromEntity(Usuario usuario, Double distanciaKm, String textoProximidade) {
+        
         List<AptidaoResumoDTO> aptidoesDTO = null;
+        
         if (usuario.getAptidoes() != null) {
-            aptidoesDTO = usuario.getAptidoes().stream()
-                    .map(a -> AptidaoResumoDTO.builder()
-                            .saberId(a.getSaber() != null ? a.getSaber().getId() : null)
-                            .saberNome(a.getSaber() != null ? a.getSaber().getNome() : null)
-                            .precoHora(a.getPrecoHora())
-                            .nivelDominio(a.getNivelDominio())
-                            .build())
-                    .collect(Collectors.toList());
+            aptidoesDTO = usuario.getAptidoes().stream().map(aptidao -> 
+                AptidaoResumoDTO.builder()
+                    .saberId(aptidao.getSaber() != null ? aptidao.getSaber().getId() : null)
+                    .saberNome(aptidao.getSaber() != null ? aptidao.getSaber().getNome() : null)
+                    // A conversão .doubleValue() abaixo resolve os erros da linha 60 e 63!
+                    .precoHora(aptidao.getPrecoHora() != null ? aptidao.getPrecoHora().doubleValue() : null)
+                    .nivelDominio(aptidao.getNivelDominio())
+                    .build()
+            ).collect(Collectors.toList());
         }
 
         return ProfessorBuscaResponseDTO.builder()
