@@ -48,28 +48,29 @@ public class AuthService {
 
     @Transactional
     public AuthResponseDTO autenticar(AuthRequestDTO request) {
-        rateLimitingService.verificarTentativaLogin(request.getEmail());
+        String loginInput = request.getEmail() != null ? request.getEmail().trim() : "";
+        String cpfLimpo = loginInput.replaceAll("[.\\-]", "");
 
-        Usuario usuario = usuarioRepository.findByEmail(request.getEmail());
+        rateLimitingService.verificarTentativaLogin(loginInput);
+
+        // 🟢 Busca por e-mail ou por CPF
+        Usuario usuario = usuarioRepository.findByEmailOrCpf(loginInput, cpfLimpo);
         if (usuario == null) {
-            throw new RegraNegocioException("Credenciais inválidas: e-mail ou senha incorretos.");
+            throw new RegraNegocioException("Credenciais inválidas: e-mail/CPF ou senha incorretos.");
         }
 
         boolean senhaCorreta = legacyMigrationService.verificarSenha(request.getSenha(), usuario.getSenha());
         if (!senhaCorreta) {
-            throw new RegraNegocioException("Credenciais inválidas: e-mail ou senha incorretos.");
+            throw new RegraNegocioException("Credenciais inválidas: e-mail/CPF ou senha incorretos.");
         }
 
-        // f3-t5: Validação de e-mail verificado
+        // Validação de e-mail verificado
         if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
             throw new RegraNegocioException("Seu e-mail ainda não foi verificado. Confirme o código de verificação enviado para o seu e-mail.");
         }
 
-        // f3-t10: Atualiza senha legada para BCrypt se ainda não estiver hasheada
         legacyMigrationService.upgradeParaBcryptSeNecessario(usuario, request.getSenha());
-
-        // Limpa tentativas de rate limiting em caso de sucesso
-        rateLimitingService.limparTentativasLogin(request.getEmail());
+        rateLimitingService.limparTentativasLogin(loginInput);
 
         String papelStr = usuario.getPapel() != null ? usuario.getPapel().name() : "ROLE_ALUNO";
         String accessToken = tokenProvider.gerarAccessToken(usuario.getId(), usuario.getEmail(), papelStr);
