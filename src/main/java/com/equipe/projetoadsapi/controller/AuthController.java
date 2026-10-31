@@ -31,7 +31,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping({"/api/v1/auth", "/api/auth"})
-@CrossOrigin(origins = "*") // Permite requisições do Expo, emuladores Android/iOS e Web
+@CrossOrigin(originPatterns = "*") // Usa originPatterns para compatibilidade estrita com allowCredentials(true)
 @Tag(name = "Autenticação (v1)", description = "Login unificado, cadastro com verificação de e-mail, renovação de JWT e logout")
 public class AuthController {
 

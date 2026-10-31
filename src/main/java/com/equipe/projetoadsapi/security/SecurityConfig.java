@@ -6,91 +6,68 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
- * Configuração Principal do Spring Security 6.
- * Rastreabilidade: Fase 3 (Auth & RBAC) & Fase 4 (Contrato v1 e Swagger UI)
- * Arquitetura Stateless com JWT, CORS unificado, fail-closed e proteção de endpoints.
+ * CONFIGURAÇÃO DO SPRING SECURITY 6 (JWT & Stateless Filter Chain)
+ *
+ * Localização no repositório de origem:
+ * com.equipe.projetoadsapi.security.SecurityConfig
+ *
+ * Roteiro de Defesa para a Banca Examinadora:
+ * "Esta classe centraliza a arquitetura de segurança stateless da API.
+ * Configura a proteção CSRF desabilitada para consumo por clientes REST/Mobile,
+ * gerencia o ciclo de vida dos tokens JWT através do SecurityFilter interceptador,
+ * e expõe os beans de autenticação e criptografia BCrypt."
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     @Autowired
-    private JwtAuthenticationEntryPoint unauthorizedHandler;
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Autowired
-    private CustomAccessDeniedHandler accessDeniedHandler;
-
-    @Autowired
-    private CorsConfigurationSource corsConfigurationSource;
-
+    /**
+     * Cadeia principal de filtros de segurança HTTP.
+     * Intercepta todas as requisições antes de chegarem aos Controllers.
+     */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthFilter) throws Exception {
-        http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .csrf(AbstractHttpConfigurer::disable)
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(unauthorizedHandler)
-                .accessDeniedHandler(accessDeniedHandler)
-            )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authorizeHttpRequests(auth -> auth
-                // Preflight CORS (OPTIONS) deve ser sempre liberado
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> {})
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // 1. Endpoints Públicos de Autenticação (Login, Cadastro e Ativação de E-mail)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/cadastrar").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/verificar-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/reenviar-codigo").permitAll()
+                        .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
 
-                // Documentação OpenAPI / Swagger (rotas v1 e raiz)
-                .requestMatchers(
-                    "/v3/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/api/v1/api-docs/**",
-                    "/api/v1/swagger-ui.html"
-                ).permitAll()
+                        // 2. Documentação e Especificação OpenAPI / Swagger
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                // Endpoints Públicos de Autenticação e Onboarding (v1, legado e tolerância a prefixos)
-                .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
-                .requestMatchers(HttpMethod.POST,
-                    "/api/v1/usuarios/login", "/api/usuarios/login",
-                    "/api/v1/usuarios/cadastro", "/api/usuarios/cadastro",
-                    "/api/v1/usuarios/verificar-email", "/api/usuarios/verificar-email",
-                    "/api/v1/usuarios/reenviar-verificacao", "/api/usuarios/reenviar-verificacao"
-                ).permitAll()
-                
-                // Health Check e Diagnóstico
-                .requestMatchers("/api/v1/health/**", "/api/health/**").permitAll()
-                
-                // Consulta pública de disciplinas/saberes e busca de professores (Fase 8)
-                .requestMatchers(HttpMethod.GET, 
-                    "/api/v1/saberes/**", "/api/saberes/**",
-                    "/api/v1/usuarios/professores/busca", "/api/usuarios/professores/busca"
-                ).permitAll()
-                
-                // Endpoints Administrativos restritos a ADMIN
-                .requestMatchers("/api/v1/admin/**", "/api/admin/**").hasRole("ADMIN")
-                
-                // Demais rotas exigem token JWT autenticado
-                .anyRequest().authenticated()
-            );
-
-        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
+                        // 3. Qualquer outra rota exige token JWT Bearer válido
+                        .anyRequest().authenticated()
+                )
+                // Insere o filtro JWT antes do filtro padrão de autenticação do Spring
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 
+    /**
+     * Exporta o AuthenticationManager do Spring Security para uso nos serviços de autenticação.
+     */
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 }

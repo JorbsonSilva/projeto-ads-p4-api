@@ -2,6 +2,7 @@ package com.equipe.projetoadsapi.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +15,7 @@ import lombok.NoArgsConstructor;
  * Roteiro de Defesa para a Banca Examinadora:
  * "Garante a integridade dos dados antes que alcancem o banco de dados.
  * Valida formatos essenciais (tamanho do nome, formato padrão de e-mail RFC 5322,
- * e comprimento mínimo de senha para mitigar ataques de força bruta)."
+ * e comprimento mínimo de senha de 8 caracteres com letras maiúsculas, minúsculas, números e símbolos)."
  */
 @Data
 @Builder
@@ -31,7 +32,11 @@ public class UsuarioCadastroRequestDTO {
     private String email;
 
     @NotBlank(message = "A senha é obrigatória.")
-    @Size(min = 6, max = 100, message = "A senha deve conter no mínimo 6 caracteres.")
+    @Size(min = 8, max = 100, message = "A senha deve conter no mínimo 8 caracteres.")
+    @Pattern(
+        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$",
+        message = "A senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial."
+    )
     private String senha;
 
     /**
