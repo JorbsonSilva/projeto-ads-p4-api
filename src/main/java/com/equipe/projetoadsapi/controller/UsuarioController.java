@@ -46,6 +46,9 @@ public class UsuarioController {
     @Autowired
     private AptidaoRepository aptidaoRepository;
 
+    @Autowired
+    private DisponibilidadeRepository disponibilidadeRepository;
+
     @Operation(summary = "Cadastro de novo usuário", description = "Inicia o fluxo de onboarding com envio de código de 6 dígitos por e-mail.")
     @PostMapping("/cadastro")
     public ResponseEntity<ApiResponse<Map<String, String>>> cadastrar(@Valid @RequestBody UsuarioCadastroRequestDTO dto) {
@@ -126,8 +129,9 @@ public class UsuarioController {
 
         List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
         List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
 
-        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes);
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
         return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil consolidado recuperado com sucesso"));
     }
 
@@ -159,14 +163,30 @@ public class UsuarioController {
     @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/aluno")
-    public ResponseEntity<ApiResponse<?>> salvarPerfilAluno(
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> salvarPerfilAluno(
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload) {
         ownershipService.validarAcessoAluno(id);
         String bioExtraida = (String) payload.get("bio");
         List<Integer> interessesIds = (List<Integer>) payload.get("interessesIds");
-        Object resultado = service.atualizarBioAluno(id, bioExtraida, interessesIds);
-        return ResponseEntity.ok(ApiResponse.ok(resultado, "Perfil de aluno atualizado com sucesso"));
+        service.atualizarBioAluno(id, bioExtraida, interessesIds);
+
+        String nome = (String) payload.get("nome");
+        String fotoUrl = (String) payload.get("fotoUrl");
+        if ((nome != null && !nome.isBlank()) || (fotoUrl != null && !fotoUrl.isBlank())) {
+            Usuario u = service.buscarPorId(id);
+            if (nome != null && !nome.isBlank()) u.setNome(nome.trim());
+            if (fotoUrl != null && !fotoUrl.isBlank()) u.setFotoUrl(fotoUrl.trim());
+            service.atualizarDados(id, u);
+        }
+
+        Usuario usuarioAtualizado = service.buscarPorId(id);
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuarioAtualizado, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil de aluno atualizado com sucesso"));
     }
 
     @Operation(summary = "Atualizar perfil de professor com aptidões", description = "Salva biografia e lista de matérias lecionadas com preço/hora. Restrito a Professor e dono da conta.")
@@ -174,16 +194,31 @@ public class UsuarioController {
     @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/professor")
-    public ResponseEntity<ApiResponse<?>> salvarPerfilProfessor(
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> salvarPerfilProfessor(
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload) {
         ownershipService.validarAcessoDocente(id);
         String bioExtraida = (String) payload.get("bio");
         List<Map<String, Object>> aptidoesPayload = (List<Map<String, Object>>) payload.get("aptidoesNova");
         List<Map<String, Object>> dispPayload = (List<Map<String, Object>>) payload.get("disponibilidadesNova");
+        service.atualizarPerfilProfessor(id, bioExtraida, aptidoesPayload, dispPayload);
 
-        Object resultado = service.atualizarPerfilProfessor(id, bioExtraida, aptidoesPayload, dispPayload);
-        return ResponseEntity.ok(ApiResponse.ok(resultado, "Perfil de professor atualizado com sucesso"));
+        String nome = (String) payload.get("nome");
+        String fotoUrl = (String) payload.get("fotoUrl");
+        if ((nome != null && !nome.isBlank()) || (fotoUrl != null && !fotoUrl.isBlank())) {
+            Usuario u = service.buscarPorId(id);
+            if (nome != null && !nome.isBlank()) u.setNome(nome.trim());
+            if (fotoUrl != null && !fotoUrl.isBlank()) u.setFotoUrl(fotoUrl.trim());
+            service.atualizarDados(id, u);
+        }
+
+        Usuario usuarioAtualizado = service.buscarPorId(id);
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuarioAtualizado, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil de professor atualizado com sucesso"));
     }
 
     @Operation(summary = "Professores em destaque para o aluno", description = "Recomenda professores baseado nas matérias de interesse do aluno.")

@@ -2,14 +2,10 @@ package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.ApiResponse;
 import com.equipe.projetoadsapi.dto.PerfilAtualizacaoDTO;
-import com.equipe.projetoadsapi.model.Aptidao;
-import com.equipe.projetoadsapi.model.Interesse;
-import com.equipe.projetoadsapi.model.Saber;
-import com.equipe.projetoadsapi.model.Usuario;
-import com.equipe.projetoadsapi.repository.AptidaoRepository;
-import com.equipe.projetoadsapi.repository.InteresseRepository;
-import com.equipe.projetoadsapi.repository.SaberRepository;
-import com.equipe.projetoadsapi.repository.UsuarioRepository;
+import com.equipe.projetoadsapi.dto.PerfilCompletoDTO;
+import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
+import com.equipe.projetoadsapi.model.*;
+import com.equipe.projetoadsapi.repository.*;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -20,19 +16,23 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import java.time.LocalTime;
 import java.util.List;
-import java.util.Map;
 
 /**
- * CONTROLLER DE PERFIL LEGADO (Compatibilidade Retroativa com Enforcing RBAC).
- * Rastreabilidade: Fase 4 - f4-t1, f4-t3 & Tarefa [BACK-003]
- * @deprecated Prefira utilizar /api/v1/usuarios/{id}/perfil para leitura e atualização consolidada.
+ * CONTROLLER DE PERFIL HARMONIZADO POR PERSONA (ALUNO E PROFESSOR).
+ * Rastreabilidade: Fase 4 - f4-t1, f4-t3 & Tarefa [BACK-004] (Requisito RN-001)
+ * 
+ * Atende às rotas específicas por persona:
+ * - GET/PUT /api/v1/perfil/aluno/{id} (preferências de estudo, biografia e dados básicos)
+ * - GET/PUT /api/v1/perfil/professor/{id} (biografia, matérias lecionadas, valor/hora e disponibilidades)
+ * - GET /api/v1/perfil/{id} (perfil consolidado universal)
+ * 
+ * Todas as respostas retornam o envelope padronizado ApiResponse<PerfilCompletoDTO>.
  */
-@Deprecated(since = "v1")
 @RestController
 @RequestMapping({"/api/v1/perfil", "/api/perfil"})
-@Tag(name = "Perfil Legado (Compatibilidade)", description = "Endpoints de compatibilidade com versões antigas do mobile. Recomenda-se migrar para /api/v1/usuarios/{id}/perfil.")
+@Tag(name = "Perfil por Persona (v1)", description = "Endpoints especializados para visualização e edição de perfil de Aluno e Professor")
 @SecurityRequirement(name = "bearerAuth")
 public class PerfilController {
 
@@ -49,30 +49,94 @@ public class PerfilController {
     private AptidaoRepository aptidaoRepository;
 
     @Autowired
+    private DisponibilidadeRepository disponibilidadeRepository;
+
+    @Autowired
     private ResourceOwnershipService ownershipService;
 
-    @Operation(summary = "Atualizar perfil aluno (legado)", deprecated = true)
+    @Operation(summary = "Obter perfil unificado por ID", description = "Retorna o perfil completo unificado com saberes e disponibilidades.")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#id)")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> obterPerfilPorId(@PathVariable Long id) {
+        ownershipService.validarPropriedadeUsuario(id);
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id));
+
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil consolidado recuperado com sucesso"));
+    }
+
+    @Operation(summary = "Obter dados do perfil aluno", description = "Retorna perfil com dados cadastrais e disciplinas de interesse do aluno.")
+    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
+    @GetMapping("/aluno/{id}")
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> obterAluno(@PathVariable Long id) {
+        ownershipService.validarAcessoAluno(id);
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno não encontrado com ID: " + id));
+
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil de aluno recuperado com sucesso"));
+    }
+
+    @Operation(summary = "Obter dados do perfil professor", description = "Retorna perfil com dados pedagógicos, valores hora/aula e disponibilidade.")
+    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
+    @GetMapping("/professor/{id}")
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> obterProfessor(@PathVariable Long id) {
+        ownershipService.validarAcessoDocente(id);
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Professor não encontrado com ID: " + id));
+
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO dto = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil de professor recuperado com sucesso"));
+    }
+
+    @Operation(summary = "Atualizar perfil aluno", description = "Atualiza nome, biografia e lista de interesses do aluno logado.")
     @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/aluno/{id}")
     @Transactional
-    public ResponseEntity<ApiResponse<Map<String, Object>>> atualizarAluno(
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> atualizarAluno(
             @PathVariable Long id, @RequestBody PerfilAtualizacaoDTO dto) {
         
         ownershipService.validarAcessoAluno(id);
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno não encontrado com ID: " + id));
 
-        usuario.setNome(dto.getNome());
+        if (dto.getNome() != null && !dto.getNome().isBlank()) {
+            usuario.setNome(dto.getNome().trim());
+        }
+        if (dto.getBioEfetiva() != null) {
+            usuario.setBioAluno(dto.getBioEfetiva().trim());
+        }
+        if (dto.getDataNascimentoEfetiva() != null && !dto.getDataNascimentoEfetiva().isBlank()) {
+            usuario.setDataNascimento(dto.getDataNascimentoEfetiva().trim());
+        }
+        if (dto.getFotoUrl() != null && !dto.getFotoUrl().isBlank()) {
+            usuario.setFotoUrl(dto.getFotoUrl().trim());
+        }
         usuarioRepository.save(usuario);
 
-        interesseRepository.deleteByUsuarioId(id);
-
+        // Atualização de matérias de interesse (se enviadas)
         if (dto.getInteresses() != null) {
+            interesseRepository.deleteByUsuarioId(id);
             for (String nomeMateria : dto.getInteresses()) {
-                Saber saber = saberRepository.findByNome(nomeMateria)
+                if (nomeMateria == null || nomeMateria.isBlank()) continue;
+                String materiaLimpa = nomeMateria.trim();
+                Saber saber = saberRepository.findByNome(materiaLimpa)
                         .orElseGet(() -> {
                             Saber novo = new Saber();
-                            novo.setNome(nomeMateria);
+                            novo.setNome(materiaLimpa);
                             novo.setCategoria("Geral");
                             return saberRepository.save(novo);
                         });
@@ -84,33 +148,60 @@ public class PerfilController {
             }
         }
 
-        Map<String, Object> resp = new HashMap<>();
-        resp.put("mensagem", "Perfil do aluno atualizado com sucesso!");
-        return ResponseEntity.ok(ApiResponse.ok(resp));
+        List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+
+        PerfilCompletoDTO completo = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(completo, "Perfil do aluno atualizado com sucesso!"));
     }
 
-    @Operation(summary = "Atualizar perfil professor (legado)", deprecated = true)
+    @Operation(summary = "Atualizar perfil professor", description = "Atualiza nome, biografia, disciplinas lecionadas, valor/hora, presencial e disponibilidade.")
     @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/professor/{id}")
     @Transactional
-    public ResponseEntity<ApiResponse<Map<String, Object>>> atualizarProfessor(
+    public ResponseEntity<ApiResponse<PerfilCompletoDTO>> atualizarProfessor(
             @PathVariable Long id, @RequestBody PerfilAtualizacaoDTO dto) {
         
         ownershipService.validarAcessoDocente(id);
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Professor não encontrado com ID: " + id));
 
-        usuario.setNome(dto.getNome());
+        if (dto.getNome() != null && !dto.getNome().isBlank()) {
+            usuario.setNome(dto.getNome().trim());
+        }
+        if (dto.getBioEfetiva() != null) {
+            usuario.setBioProfessor(dto.getBioEfetiva().trim());
+        }
+        if (dto.getDataNascimentoEfetiva() != null && !dto.getDataNascimentoEfetiva().isBlank()) {
+            usuario.setDataNascimento(dto.getDataNascimentoEfetiva().trim());
+        }
+        if (dto.getFotoUrl() != null && !dto.getFotoUrl().isBlank()) {
+            usuario.setFotoUrl(dto.getFotoUrl().trim());
+        }
+        if (dto.getOferecePresencial() != null) {
+            usuario.setOferecePresencial(dto.getOferecePresencial());
+        }
+        if (dto.getRegiaoAtendimento() != null) {
+            usuario.setRegiaoAtendimento(dto.getRegiaoAtendimento().trim());
+        }
+        if (dto.getRaioAtendimentoKm() != null) {
+            usuario.setRaioAtendimentoKm(dto.getRaioAtendimentoKm());
+        }
         usuarioRepository.save(usuario);
 
-        aptidaoRepository.deleteByUsuarioId(id);
-
+        // Atualização de Aptidões Docentes
         if (dto.getAptidoes() != null) {
+            aptidaoRepository.deleteByUsuarioId(id);
             for (var item : dto.getAptidoes()) {
-                Saber saber = saberRepository.findByNome(item.getMateria())
+                String nomeMateria = item.getMateria();
+                if (nomeMateria == null || nomeMateria.isBlank()) continue;
+                String materiaLimpa = nomeMateria.trim();
+
+                Saber saber = saberRepository.findByNome(materiaLimpa)
                         .orElseGet(() -> {
                             Saber novo = new Saber();
-                            novo.setNome(item.getMateria());
+                            novo.setNome(materiaLimpa);
                             novo.setCategoria("Geral");
                             return saberRepository.save(novo);
                         });
@@ -118,58 +209,35 @@ public class PerfilController {
                 Aptidao aptidao = new Aptidao();
                 aptidao.setUsuario(usuario);
                 aptidao.setSaber(saber);
-                aptidao.setPreco(item.getPreco());
+                aptidao.setNivelDominio(item.getNivelDominio() != null ? item.getNivelDominio() : "Avançado");
+                aptidao.setPrecoHora(item.getPreco() != null ? item.getPreco() : java.math.BigDecimal.valueOf(60.00));
                 aptidaoRepository.save(aptidao);
             }
         }
 
-        Map<String, Object> resp = new HashMap<>();
-        resp.put("mensagem", "Perfil do professor atualizado com sucesso!");
-        return ResponseEntity.ok(ApiResponse.ok(resp));
-    }
-
-    @Operation(summary = "Obter dados do perfil aluno (legado)", deprecated = true)
-    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
-    @GetMapping("/aluno/{id}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> obterAluno(@PathVariable Long id) {
-        ownershipService.validarAcessoAluno(id);
-        Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
+        // Atualização de Grade Semanal de Disponibilidades
+        if (dto.getDisponibilidades() != null) {
+            disponibilidadeRepository.deleteByUsuarioId(id);
+            for (var dispDto : dto.getDisponibilidades()) {
+                if (dispDto.getDiaSemana() == null) continue;
+                Disponibilidade disp = new Disponibilidade();
+                disp.setUsuario(usuario);
+                disp.setDiaSemana(dispDto.getDiaSemana().toUpperCase());
+                if (dispDto.getHoraInicio() != null) {
+                    disp.setHoraInicio(LocalTime.parse(dispDto.getHoraInicio()));
+                }
+                if (dispDto.getHoraFim() != null) {
+                    disp.setHoraFim(LocalTime.parse(dispDto.getHoraFim()));
+                }
+                disponibilidadeRepository.save(disp);
+            }
+        }
 
         List<Interesse> interesses = interesseRepository.findByUsuarioId(id);
-        List<String> nomesInteresses = interesses.stream()
-                .map(i -> i.getSaber().getNome())
-                .toList();
-
-        Map<String, Object> dados = new HashMap<>();
-        dados.put("nome", usuario.getNome());
-        dados.put("email", usuario.getEmail());
-        dados.put("interesses", nomesInteresses);
-
-        return ResponseEntity.ok(ApiResponse.ok(dados));
-    }
-
-    @Operation(summary = "Obter dados do perfil professor (legado)", deprecated = true)
-    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
-    @GetMapping("/professor/{id}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> obterProfessor(@PathVariable Long id) {
-        ownershipService.validarAcessoDocente(id);
-        Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
-
         List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
-        List<Map<String, Object>> listaAptidoes = aptidoes.stream().map(a -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("materia", a.getSaber().getNome());
-            map.put("preco", a.getPreco());
-            return map;
-        }).toList();
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
 
-        Map<String, Object> dados = new HashMap<>();
-        dados.put("nome", usuario.getNome());
-        dados.put("email", usuario.getEmail());
-        dados.put("aptidoes", listaAptidoes);
-
-        return ResponseEntity.ok(ApiResponse.ok(dados));
+        PerfilCompletoDTO completo = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
+        return ResponseEntity.ok(ApiResponse.ok(completo, "Perfil do professor atualizado com sucesso!"));
     }
 }
