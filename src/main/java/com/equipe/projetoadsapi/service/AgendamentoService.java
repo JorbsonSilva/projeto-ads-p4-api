@@ -52,38 +52,65 @@ public class AgendamentoService {
             throw new RegraNegocioException("Não é permitido agendar uma aula consigo mesmo.");
         }
 
-        // Regra de Negócio P1 (f5-t8): Antecedência mínima de 24 horas no servidor
+        // Regra de Negócio P1 (f5-t8): Antecedência mínima estrita de 24 horas no servidor
         LocalDateTime dataHoraAula = LocalDateTime.of(dto.getData(), dto.getHora());
         LocalDateTime antecedenciaMinima = LocalDateTime.now().plusHours(24);
         if (dataHoraAula.isBefore(antecedenciaMinima)) {
             throw new RegraNegocioException("Agendamentos devem ser solicitados com antecedência mínima de 24 horas em relação ao horário atual.");
         }
 
-        // Concorrência Atômica (f5-t9): Validação contra choques de horário
-        boolean conflito = agendamentoRepository.existsByProfessorAndDataAndHoraAndStatusNotIn(
+        // Concorrência Atômica Bilateral (f5-t9): Validação contra choques de horário na agenda do Professor e do Aluno
+        List<StatusAgendamento> statusInativos = List.of(StatusAgendamento.CANCELADO, StatusAgendamento.RECUSADO);
+
+        boolean conflitoProfessor = agendamentoRepository.existsByProfessorAndDataAndHoraAndStatusNotIn(
                 professor,
                 dto.getData(),
                 dto.getHora(),
-                List.of(StatusAgendamento.CANCELADO, StatusAgendamento.RECUSADO)
+                statusInativos
         );
 
-        if (conflito) {
+        if (conflitoProfessor) {
             throw new RegraNegocioException("Conflito de agenda: O professor já possui uma aula ativa marcada neste dia e horário.");
         }
 
-        // Vínculo opcional de Saber/Disciplina (f5-t3)
+        boolean conflitoAluno = agendamentoRepository.existsByAlunoAndDataAndHoraAndStatusNotIn(
+                aluno,
+                dto.getData(),
+                dto.getHora(),
+                statusInativos
+        );
+
+        if (conflitoAluno) {
+            throw new RegraNegocioException("Conflito de agenda: O aluno já possui outra mentoria marcada neste mesmo dia e horário.");
+        }
+
+        // Vínculo opcional de Saber/Disciplina (f5-t3) e congelamento atômico de preço (f5-t5)
         Saber saber = null;
         BigDecimal valorCongelado = BigDecimal.ZERO;
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(professor.getId());
+
         if (dto.getIdDisciplina() != null) {
             saber = saberRepository.findById(dto.getIdDisciplina()).orElse(null);
-            if (saber != null) {
-                // Congela valor do professor para a disciplina (f5-t5)
-                List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(professor.getId());
+            if (saber != null && aptidoes != null) {
+                // Busca o preço específico configurado para a disciplina selecionada
                 for (Aptidao a : aptidoes) {
                     if (a.getSaber() != null && a.getSaber().getId().equals(saber.getId()) && a.getPreco() != null) {
                         valorCongelado = a.getPreco();
                         break;
                     }
+                }
+            }
+        }
+
+        // Se não encontrou valor específico para a matéria mas há aptidões cadastradas com preço, utiliza a primeira válida
+        if (valorCongelado.compareTo(BigDecimal.ZERO) == 0 && aptidoes != null && !aptidoes.isEmpty()) {
+            for (Aptidao a : aptidoes) {
+                if (a.getPreco() != null && a.getPreco().compareTo(BigDecimal.ZERO) > 0) {
+                    valorCongelado = a.getPreco();
+                    if (saber == null && a.getSaber() != null) {
+                        saber = a.getSaber();
+                    }
+                    break;
                 }
             }
         }
@@ -220,15 +247,30 @@ public class AgendamentoService {
             throw new RegraNegocioException("Reagendamentos devem respeitar a antecedência mínima de 24 horas.");
         }
 
-        boolean conflito = agendamentoRepository.existsByProfessorAndDataAndHoraAndStatusNotIn(
+        List<StatusAgendamento> statusInativos = List.of(StatusAgendamento.CANCELADO, StatusAgendamento.RECUSADO);
+
+        boolean conflitoProfessor = agendamentoRepository.existsByProfessorAndDataAndHoraAndIdNotAndStatusNotIn(
                 agendamento.getProfessor(),
                 dto.getData(),
                 dto.getHora(),
-                List.of(StatusAgendamento.CANCELADO, StatusAgendamento.RECUSADO)
+                agendamento.getId(),
+                statusInativos
         );
 
-        if (conflito) {
+        if (conflitoProfessor) {
             throw new RegraNegocioException("O professor já possui outra aula ativa marcada no novo horário selecionado.");
+        }
+
+        boolean conflitoAluno = agendamentoRepository.existsByAlunoAndDataAndHoraAndIdNotAndStatusNotIn(
+                agendamento.getAluno(),
+                dto.getData(),
+                dto.getHora(),
+                agendamento.getId(),
+                statusInativos
+        );
+
+        if (conflitoAluno) {
+            throw new RegraNegocioException("O aluno já possui outra mentoria marcada no novo horário selecionado.");
         }
 
         StatusAgendamento statusAnterior = agendamento.getStatus();

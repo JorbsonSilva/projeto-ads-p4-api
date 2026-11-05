@@ -18,9 +18,20 @@ import java.util.List;
 @Repository
 public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> {
     
-    // Conflito considerando apenas agendamentos ativos (não cancelados nem recusados)
+    // Conflito considerando apenas agendamentos ativos do professor (não cancelados nem recusados)
     boolean existsByProfessorAndDataAndHoraAndStatusNotIn(
             Usuario professor, LocalDate data, LocalTime hora, Collection<StatusAgendamento> statusInativos);
+
+    // Conflito considerando agendamentos ativos do aluno (não cancelados nem recusados)
+    boolean existsByAlunoAndDataAndHoraAndStatusNotIn(
+            Usuario aluno, LocalDate data, LocalTime hora, Collection<StatusAgendamento> statusInativos);
+
+    // Conflito excluindo o próprio ID (útil em reagendamentos)
+    boolean existsByProfessorAndDataAndHoraAndIdNotAndStatusNotIn(
+            Usuario professor, LocalDate data, LocalTime hora, Long id, Collection<StatusAgendamento> statusInativos);
+
+    boolean existsByAlunoAndDataAndHoraAndIdNotAndStatusNotIn(
+            Usuario aluno, LocalDate data, LocalTime hora, Long id, Collection<StatusAgendamento> statusInativos);
 
     // Consulta legada mantida para retrocompatibilidade
     boolean existsByProfessorAndDataAndHora(Usuario professor, LocalDate data, LocalTime hora);
