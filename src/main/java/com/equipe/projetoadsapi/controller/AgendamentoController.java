@@ -117,14 +117,15 @@ public class AgendamentoController {
         return ResponseEntity.ok(ApiResponse.ok(atualizado, "Solicitação de aula recusada"));
     }
 
-    @Operation(summary = "Cancelar aula agendada", description = "Cancela uma aula já marcada com envio de justificativa obrigatória.")
+    @Operation(summary = "Cancelar aula agendada", description = "Cancela uma aula já marcada com envio de justificativa obrigatória e validação da política de 2h.")
     @PutMapping("/{id}/cancelar")
     public ResponseEntity<ApiResponse<AgendamentoResponseDTO>> cancelarAgendamento(
             @PathVariable Long id,
             @Valid @RequestBody CancelarAgendamentoDTO dto) {
         AgendamentoResponseDTO agendamento = agendamentoService.buscarPorId(id);
         ownershipService.validarParticipanteAgendamento(agendamento.getAlunoId(), agendamento.getProfessorId());
-        AgendamentoResponseDTO atualizado = agendamentoService.cancelarAgendamento(id, dto);
+        Long usuarioAutenticadoId = com.equipe.projetoadsapi.security.SecurityUtils.getUsuarioAutenticadoId();
+        AgendamentoResponseDTO atualizado = agendamentoService.cancelarAgendamento(id, dto, usuarioAutenticadoId);
         return ResponseEntity.ok(ApiResponse.ok(atualizado, "Agendamento cancelado com sucesso"));
     }
 

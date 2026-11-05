@@ -231,4 +231,184 @@ public class AgendamentoServiceTest {
         assertTrue(ex.getMessage().contains("Não é permitido agendar uma aula consigo mesmo"));
         verify(agendamentoRepository, never()).save(any());
     }
+
+    // =========================================================================
+    // TESTES DA MÁQUINA DE ESTADOS E POLÍTICA DE CANCELAMENTO (BACK-006)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Deve transitar com sucesso de PENDENTE para CONFIRMADO no aceite do professor")
+    void deveAceitarAgendamentoComSucesso() {
+        Agendamento pendente = Agendamento.builder()
+                .id(100L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(LocalDate.now().plusDays(2))
+                .hora(LocalTime.of(14, 0))
+                .status(StatusAgendamento.PENDENTE)
+                .build();
+
+        when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(pendente));
+        when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(i -> i.getArgument(0));
+
+        AgendamentoResponseDTO response = agendamentoService.aceitarAgendamento(100L);
+
+        assertNotNull(response);
+        assertEquals(StatusAgendamento.CONFIRMADO, response.getStatus());
+        verify(historicoRepository, times(1)).save(argThat(h -> 
+                h.getStatusAnterior() == StatusAgendamento.PENDENTE &&
+                h.getStatusNovo() == StatusAgendamento.CONFIRMADO &&
+                h.getAlteradoPor().getId().equals(2L)
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar aceite de agendamento que não esteja PENDENTE")
+    void deveRejeitarAceiteSeNaoPendente() {
+        Agendamento jaConfirmado = Agendamento.builder()
+                .id(101L)
+                .aluno(aluno)
+                .professor(professor)
+                .status(StatusAgendamento.CONFIRMADO)
+                .build();
+
+        when(agendamentoRepository.findById(101L)).thenReturn(Optional.of(jaConfirmado));
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+            agendamentoService.aceitarAgendamento(101L);
+        });
+
+        assertTrue(ex.getMessage().contains("Apenas agendamentos com status PENDENTE podem ser aceitos"));
+        verify(agendamentoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve recusar agendamento PENDENTE registrando justificativa obrigatória")
+    void deveRecusarAgendamentoComJustificativa() {
+        Agendamento pendente = Agendamento.builder()
+                .id(102L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(LocalDate.now().plusDays(2))
+                .hora(LocalTime.of(15, 0))
+                .status(StatusAgendamento.PENDENTE)
+                .build();
+
+        com.equipe.projetoadsapi.dto.RecusarAgendamentoDTO dto = com.equipe.projetoadsapi.dto.RecusarAgendamentoDTO.builder()
+                .justificativa("Horário incompatível com banca de TCC")
+                .build();
+
+        when(agendamentoRepository.findById(102L)).thenReturn(Optional.of(pendente));
+        when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(i -> i.getArgument(0));
+
+        AgendamentoResponseDTO response = agendamentoService.recusarAgendamento(102L, dto);
+
+        assertNotNull(response);
+        assertEquals(StatusAgendamento.RECUSADO, response.getStatus());
+        verify(historicoRepository, times(1)).save(argThat(h -> 
+                h.getStatusAnterior() == StatusAgendamento.PENDENTE &&
+                h.getStatusNovo() == StatusAgendamento.RECUSADO &&
+                h.getMotivo().contains("Horário incompatível com banca de TCC")
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve permitir cancelamento pelo aluno quando realizado com mais de 2 horas de antecedência")
+    void devePermitirCancelamentoAlunoComMaisDe2Horas() {
+        // Aula daqui a 24 horas
+        LocalDate dataAula = LocalDate.now().plusDays(1);
+        LocalTime horaAula = LocalTime.now().plusHours(2);
+
+        Agendamento confirmado = Agendamento.builder()
+                .id(103L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(dataAula)
+                .hora(horaAula)
+                .status(StatusAgendamento.CONFIRMADO)
+                .build();
+
+        com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO dto = com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO.builder()
+                .justificativa("Imprevisto familiar justificado com antecedência")
+                .build();
+
+        when(agendamentoRepository.findById(103L)).thenReturn(Optional.of(confirmado));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(aluno));
+        when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(i -> i.getArgument(0));
+
+        AgendamentoResponseDTO response = agendamentoService.cancelarAgendamento(103L, dto, 1L);
+
+        assertNotNull(response);
+        assertEquals(StatusAgendamento.CANCELADO, response.getStatus());
+        verify(historicoRepository, times(1)).save(argThat(h -> 
+                h.getStatusNovo() == StatusAgendamento.CANCELADO &&
+                h.getAlteradoPor().getId().equals(1L)
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar cancelamento pelo aluno quando realizado com menos de 2 horas de antecedência")
+    void deveRejeitarCancelamentoAlunoMenosDe2Horas() {
+        // Aula daqui a apenas 30 minutos
+        LocalDate dataHoje = LocalDate.now();
+        LocalTime horaProxima = LocalTime.now().plusMinutes(30);
+
+        Agendamento confirmado = Agendamento.builder()
+                .id(104L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(dataHoje)
+                .hora(horaProxima)
+                .status(StatusAgendamento.CONFIRMADO)
+                .build();
+
+        com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO dto = com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO.builder()
+                .justificativa("Desistência de última hora")
+                .build();
+
+        when(agendamentoRepository.findById(104L)).thenReturn(Optional.of(confirmado));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(aluno));
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+            agendamentoService.cancelarAgendamento(104L, dto, 1L);
+        });
+
+        assertTrue(ex.getMessage().contains("menos de 2 horas de antecedência"));
+        verify(agendamentoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve permitir cancelamento pelo professor a qualquer momento com justificativa e estorno")
+    void devePermitirCancelamentoProfessorAQualquerMomento() {
+        // Aula daqui a 30 minutos
+        LocalDate dataHoje = LocalDate.now();
+        LocalTime horaProxima = LocalTime.now().plusMinutes(30);
+
+        Agendamento confirmado = Agendamento.builder()
+                .id(105L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(dataHoje)
+                .hora(horaProxima)
+                .status(StatusAgendamento.CONFIRMADO)
+                .build();
+
+        com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO dto = com.equipe.projetoadsapi.dto.CancelarAgendamentoDTO.builder()
+                .justificativa("Emergência médica urgente do professor")
+                .build();
+
+        when(agendamentoRepository.findById(105L)).thenReturn(Optional.of(confirmado));
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(professor));
+        when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(i -> i.getArgument(0));
+
+        AgendamentoResponseDTO response = agendamentoService.cancelarAgendamento(105L, dto, 2L);
+
+        assertNotNull(response);
+        assertEquals(StatusAgendamento.CANCELADO, response.getStatus());
+        verify(historicoRepository, times(1)).save(argThat(h -> 
+                h.getStatusNovo() == StatusAgendamento.CANCELADO &&
+                h.getAlteradoPor().getId().equals(2L) &&
+                h.getMotivo().contains("PROFESSOR")
+        ));
+    }
 }

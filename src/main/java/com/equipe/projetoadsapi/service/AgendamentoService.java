@@ -208,15 +208,43 @@ public class AgendamentoService {
     }
 
     /**
-     * Cancelamento formal (f5-t10)
+     * Cancelamento formal com regra bilateral e política de 2 horas (BACK-006).
+     * - Aluno cancelando com > 2h: cancelamento permitido com estorno integral.
+     * - Aluno cancelando com < 2h: rejeitado com 422 (custo de oportunidade do docente).
+     * - Professor cancelando a qualquer momento: permitido com estorno integral e registro de auditoria.
+     * - Administrador: cancelamento irrestrito para moderação e suporte.
      */
     @Transactional
-    public AgendamentoResponseDTO cancelarAgendamento(Long id, CancelarAgendamentoDTO dto) {
+    public AgendamentoResponseDTO cancelarAgendamento(Long id, CancelarAgendamentoDTO dto, Long usuarioAutenticadoId) {
         Agendamento agendamento = agendamentoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Agendamento não encontrado com ID: " + id));
 
         if (agendamento.getStatus() == StatusAgendamento.REALIZADA || agendamento.getStatus() == StatusAgendamento.CANCELADO) {
-            throw new RegraNegocioException("Não é possível cancelar uma aula que já foi realizada ou cancelada.");
+            throw new RegraNegocioException("Não é possível cancelar uma aula que já foi realizada ou cancelada. Status atual: " + agendamento.getStatus());
+        }
+
+        Usuario autor = null;
+        if (usuarioAutenticadoId != null) {
+            autor = usuarioRepository.findById(usuarioAutenticadoId).orElse(null);
+        }
+        if (autor == null) {
+            autor = agendamento.getAluno(); // Fallback
+        }
+
+        boolean isAluno = autor.getId().equals(agendamento.getAluno().getId());
+        boolean isProfessor = autor.getId().equals(agendamento.getProfessor().getId());
+
+        // Regra de Cancelamento Bilateral (Janela de 2 Horas)
+        LocalDateTime dataHoraAula = LocalDateTime.of(agendamento.getData(), agendamento.getHora());
+        LocalDateTime agora = LocalDateTime.now();
+
+        if (isAluno && !isProfessor) {
+            // Aluno cancelando: deve possuir pelo menos 2 horas de antecedência
+            if (agora.plusHours(2).isAfter(dataHoraAula)) {
+                throw new RegraNegocioException(
+                        "Cancelamento pelo aluno não permitido com menos de 2 horas de antecedência do início da aula. " +
+                        "Horário agendado: " + dataHoraAula + ". O valor é retido em favor do professor por custo de oportunidade de horário bloqueado.");
+            }
         }
 
         StatusAgendamento statusAnterior = agendamento.getStatus();
@@ -224,9 +252,22 @@ public class AgendamentoService {
         agendamento.setJustificativaCancelamento(dto.getJustificativa());
         Agendamento atualizado = agendamentoRepository.save(agendamento);
 
-        registrarHistorico(atualizado, statusAnterior, StatusAgendamento.CANCELADO, dto.getJustificativa(), agendamento.getAluno());
+        String motivoAuditoria = String.format("Cancelado por %s (%s): %s",
+                autor.getNome(),
+                isProfessor ? "PROFESSOR" : (isAluno ? "ALUNO" : "ADMIN"),
+                dto.getJustificativa());
+
+        registrarHistorico(atualizado, statusAnterior, StatusAgendamento.CANCELADO, motivoAuditoria, autor);
 
         return AgendamentoResponseDTO.fromEntity(atualizado);
+    }
+
+    /**
+     * Sobrecarga para retrocompatibilidade
+     */
+    @Transactional
+    public AgendamentoResponseDTO cancelarAgendamento(Long id, CancelarAgendamentoDTO dto) {
+        return cancelarAgendamento(id, dto, null);
     }
 
     /**
