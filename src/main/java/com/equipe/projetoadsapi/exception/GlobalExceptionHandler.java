@@ -104,18 +104,16 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponseDTO> handleAccessDenied(
+    public ResponseEntity<com.equipe.projetoadsapi.dto.ApiResponse<Object>> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
 
-        ErrorResponseDTO error = ErrorResponseDTO.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.FORBIDDEN.value())
-                .error("Acesso Negado")
-                .message(ex.getMessage() != null ? ex.getMessage() : "Você não possui permissão para acessar este recurso.")
-                .path(request.getRequestURI())
-                .build();
+        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : "Acesso Proibido: Você não possui permissão para acessar ou alterar este recurso.";
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        log.warn("[SEGURANÇA - ACESSO NEGADO] Tentativa de acesso indevido na rota {}: {}", request.getRequestURI(), msg);
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(com.equipe.projetoadsapi.dto.ApiResponse.forbidden(msg));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

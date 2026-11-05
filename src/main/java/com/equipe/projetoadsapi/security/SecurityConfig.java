@@ -6,33 +6,38 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * CONFIGURAÇÃO DO SPRING SECURITY 6 (JWT & Stateless Filter Chain)
+ * CONFIGURAÇÃO DO SPRING SECURITY 6 (JWT, Stateless Filter Chain & RBAC RN-001)
  *
- * Localização no repositório de origem:
+ * Localização no repositório:
  * com.equipe.projetoadsapi.security.SecurityConfig
  *
- * Roteiro de Defesa para a Banca Examinadora:
- * "Esta classe centraliza a arquitetura de segurança stateless da API.
- * Configura a proteção CSRF desabilitada para consumo por clientes REST/Mobile,
- * gerencia o ciclo de vida dos tokens JWT através do SecurityFilter interceptador,
- * e expõe os beans de autenticação e criptografia BCrypt."
+ * Rastreabilidade: Fase 3 (Auth & RBAC) - Tarefa [BACK-003] / Requisito RN-001
+ * Habilita segurança em nível de método com @EnableMethodSecurity(prePostEnabled = true),
+ * delega o tratamento de 401 Unauthorized e 403 Forbidden aos handlers customizados,
+ * e protege rotas docentes e financeiras contra invasão por perfil aluno.
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+    @Autowired
+    private CustomAccessDeniedHandler customAccessDeniedHandler;
 
     /**
      * Cadeia principal de filtros de segurança HTTP.
@@ -44,6 +49,10 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
                         // 1. Endpoints Públicos de Autenticação JWT e Onboarding
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/auth/login").permitAll()
@@ -55,17 +64,23 @@ public class SecurityConfig {
 
                         // 2. Endpoints Públicos Legados de Usuários (Login, Cadastro e Ativação)
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/login", "/api/usuarios/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/cadastro", "/api/v1/usuarios/registro").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/cadastro", "/api/usuarios/cadastro", "/api/v1/usuarios/registro").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/verificar-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/reenviar-verificacao").permitAll()
 
-                        // 3. Health Check da API (público para monitoramento da bancada e infraestrutura)
-                        .requestMatchers("/api/v1/health", "/api/health").permitAll()
+                        // 3. Health Check e Assistente Acadêmico público/triagem
+                        .requestMatchers("/api/v1/health", "/api/health", "/actuator/health").permitAll()
+                        .requestMatchers("/api/v1/assistente/**", "/api/v1/assistant/**").permitAll()
 
                         // 4. Documentação e Especificação OpenAPI / Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // 5. Qualquer outra rota exige token JWT Bearer válido
+                        // 5. Isolamento de Personas e RBAC (Requisito RN-001):
+                        // Rotas exclusivas de Docentes e Financeiras: bloqueio estrito para ALUNO
+                        .requestMatchers("/api/v1/professores/*/financeiro/**", "/api/professores/*/financeiro/**").hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers("/api/v1/saques/**", "/api/saques/**").hasAnyRole("PROFESSOR", "ADMIN")
+
+                        // 6. Qualquer outra rota exige token JWT Bearer válido
                         .anyRequest().authenticated()
                 )
                 // Insere o filtro JWT antes do filtro padrão de autenticação do Spring

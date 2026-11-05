@@ -62,4 +62,20 @@ public class ApiResponse<T> {
                 .timestamp(Instant.now())
                 .build();
     }
+
+    public static <T> ApiResponse<T> error(String message) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .timestamp(Instant.now())
+                .build();
+    }
+
+    public static <T> ApiResponse<T> forbidden(String message) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message != null ? message : "Acesso Proibido: Você não possui permissão para acessar ou alterar este recurso.")
+                .timestamp(Instant.now())
+                .build();
+    }
 }

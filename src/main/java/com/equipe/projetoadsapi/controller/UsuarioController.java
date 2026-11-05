@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -112,10 +113,12 @@ public class UsuarioController {
         return ResponseEntity.ok(ApiResponse.ok(UsuarioResponseDTO.fromEntity(usuarioEncontrado)));
     }
 
-    @Operation(summary = "Perfil Completo Consolidado", description = "Retorna dados cadastrais, biografia e saberes/interesses do usuário em chamada única.")
+    @Operation(summary = "Perfil Completo Consolidado", description = "Retorna dados cadastrais, biografia e saberes/interesses do usuário autenticado. Bloqueia acesso a dados de terceiros por ID Spoofing.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#id)")
     @GetMapping("/{id}/perfil")
     public ResponseEntity<ApiResponse<PerfilCompletoDTO>> obterPerfilCompleto(@PathVariable Long id) {
+        ownershipService.validarPropriedadeUsuario(id);
         Usuario usuario = service.buscarPorId(id);
         if (usuario == null) {
             throw new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id);
@@ -130,6 +133,7 @@ public class UsuarioController {
 
     @Operation(summary = "Atualizar dados cadastrais básicos", description = "Atualiza nome, foto e biografia do usuário autenticado.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#id)")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarPerfil(
             @PathVariable Long id, @RequestBody Usuario dadosAtualizados) {
@@ -140,6 +144,7 @@ public class UsuarioController {
 
     @Operation(summary = "Alterar senha de acesso", description = "Substitui a senha atual por uma nova com hashing BCrypt.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#id)")
     @PutMapping("/{id}/senha")
     public ResponseEntity<ApiResponse<Map<String, String>>> trocarSenha(
             @PathVariable Long id,
@@ -149,28 +154,30 @@ public class UsuarioController {
         return ResponseEntity.ok(ApiResponse.ok(Map.of("status", "OK"), "Senha alterada com sucesso!"));
     }
 
-    @Operation(summary = "Atualizar perfil de aluno com interesses", description = "Salva biografia e lista de IDs de matérias que deseja aprender.")
+    @Operation(summary = "Atualizar perfil de aluno com interesses", description = "Salva biografia e lista de IDs de matérias que deseja aprender. Restrito a Aluno e dono da conta.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/aluno")
     public ResponseEntity<ApiResponse<?>> salvarPerfilAluno(
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload) {
-        ownershipService.validarPropriedadeUsuario(id);
+        ownershipService.validarAcessoAluno(id);
         String bioExtraida = (String) payload.get("bio");
         List<Integer> interessesIds = (List<Integer>) payload.get("interessesIds");
         Object resultado = service.atualizarBioAluno(id, bioExtraida, interessesIds);
         return ResponseEntity.ok(ApiResponse.ok(resultado, "Perfil de aluno atualizado com sucesso"));
     }
 
-    @Operation(summary = "Atualizar perfil de professor com aptidões", description = "Salva biografia e lista de matérias lecionadas com preço/hora.")
+    @Operation(summary = "Atualizar perfil de professor com aptidões", description = "Salva biografia e lista de matérias lecionadas com preço/hora. Restrito a Professor e dono da conta.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @SuppressWarnings("unchecked")
     @PutMapping("/{id}/professor")
     public ResponseEntity<ApiResponse<?>> salvarPerfilProfessor(
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload) {
-        ownershipService.validarPropriedadeUsuario(id);
+        ownershipService.validarAcessoDocente(id);
         String bioExtraida = (String) payload.get("bio");
         List<Map<String, Object>> aptidoesPayload = (List<Map<String, Object>>) payload.get("aptidoesNova");
         List<Map<String, Object>> dispPayload = (List<Map<String, Object>>) payload.get("disponibilidadesNova");
@@ -180,8 +187,11 @@ public class UsuarioController {
     }
 
     @Operation(summary = "Professores em destaque para o aluno", description = "Recomenda professores baseado nas matérias de interesse do aluno.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#alunoId)) or hasRole('ADMIN')")
     @GetMapping("/professores/destaque/{alunoId}")
     public ResponseEntity<ApiResponse<List<UsuarioResponseDTO>>> obterProfessoresDestaque(@PathVariable Long alunoId) {
+        ownershipService.validarAcessoAluno(alunoId);
         List<Usuario> professores = service.buscarProfessoresDestaquePorAluno(alunoId);
         List<UsuarioResponseDTO> dtoList = professores.stream()
                 .map(UsuarioResponseDTO::fromEntity)
@@ -211,12 +221,13 @@ public class UsuarioController {
     @Operation(summary = "Atualizar área de atendimento presencial e localização (Fase 8)", 
                description = "Permite ao professor configurar sua região de atendimento, raio máximo e disponibilidade presencial.")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/{id}/localizacao")
     public ResponseEntity<ApiResponse<UsuarioResponseDTO>> atualizarLocalizacao(
             @PathVariable Long id,
             @Valid @RequestBody com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO dto
     ) {
-        ownershipService.validarPropriedadeUsuario(id);
+        ownershipService.validarAcessoDocente(id);
         Usuario atualizado = service.atualizarLocalizacaoProfessor(id, dto);
         return ResponseEntity.ok(ApiResponse.ok(
                 UsuarioResponseDTO.fromEntity(atualizado),

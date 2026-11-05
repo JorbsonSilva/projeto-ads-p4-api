@@ -83,7 +83,8 @@ public class AulaController {
         return ResponseEntity.ok(ApiResponse.ok(sessao, "Confirmação de encerramento registrada"));
     }
 
-    @Operation(summary = "Avaliar aula concluída", description = "Envia nota de 1 a 5 estrelas e feedback. Liberado apenas após o status atingir REALIZADA.")
+    @Operation(summary = "Avaliar aula concluída", description = "Envia nota de 1 a 5 estrelas e feedback. Liberado apenas após o status atingir REALIZADA. Restrito a Aluno.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ALUNO') or hasRole('ADMIN')")
     @PostMapping("/{agendamentoId}/avaliar")
     public ResponseEntity<ApiResponse<AvaliacaoResponseDTO>> avaliar(
             @PathVariable Long agendamentoId,

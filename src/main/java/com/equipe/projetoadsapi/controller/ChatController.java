@@ -10,13 +10,17 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
  * CONTROLLER DE CHAT INTERNO DA AULA (v1).
- * Rastreabilidade: Fase 7 - f7-t1, f7-t2, f7-t3
+ * Rastreabilidade: Fase 7 - f7-t1, f7-t2, f7-t3 & Tarefa [BACK-003]
+ * 
+ * Enforcing de segurança: Previne que um usuário acesse ou envie mensagens
+ * fingindo ser outro usuário (ID Spoofing nos parâmetros usuarioId e remetenteId).
  */
 @RestController
 @RequestMapping({"/api/v1/chat", "/api/chat"})
@@ -31,6 +35,7 @@ public class ChatController {
     private ResourceOwnershipService ownershipService;
 
     @Operation(summary = "Obter dados da conversa", description = "Retorna os metadados da conversa vinculada ao agendamento.")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#usuarioId)")
     @GetMapping("/agendamento/{agendamentoId}")
     public ResponseEntity<ApiResponse<ConversaDTO>> obterConversa(
             @PathVariable Long agendamentoId,
@@ -41,6 +46,7 @@ public class ChatController {
     }
 
     @Operation(summary = "Listar histórico de mensagens", description = "Retorna as mensagens em ordem cronológica e marca as mensagens recebidas como lidas.")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#usuarioId)")
     @GetMapping("/agendamento/{agendamentoId}/mensagens")
     public ResponseEntity<ApiResponse<List<MensagemDTO>>> listarMensagens(
             @PathVariable Long agendamentoId,
@@ -51,6 +57,7 @@ public class ChatController {
     }
 
     @Operation(summary = "Enviar mensagem na conversa", description = "Persiste a nova mensagem e notifica a outra parte. Não altera status do agendamento.")
+    @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#dto.remetenteId)")
     @PostMapping("/agendamento/{agendamentoId}/mensagens")
     public ResponseEntity<ApiResponse<MensagemDTO>> enviarMensagem(
             @PathVariable Long agendamentoId,

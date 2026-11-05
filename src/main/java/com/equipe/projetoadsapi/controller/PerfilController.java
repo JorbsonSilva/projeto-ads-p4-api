@@ -10,10 +10,13 @@ import com.equipe.projetoadsapi.repository.AptidaoRepository;
 import com.equipe.projetoadsapi.repository.InteresseRepository;
 import com.equipe.projetoadsapi.repository.SaberRepository;
 import com.equipe.projetoadsapi.repository.UsuarioRepository;
+import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,14 +25,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * CONTROLLER DE PERFIL LEGADO (Compatibilidade Retroativa).
- * Rastreabilidade: Fase 4 - f4-t1, f4-t3
+ * CONTROLLER DE PERFIL LEGADO (Compatibilidade Retroativa com Enforcing RBAC).
+ * Rastreabilidade: Fase 4 - f4-t1, f4-t3 & Tarefa [BACK-003]
  * @deprecated Prefira utilizar /api/v1/usuarios/{id}/perfil para leitura e atualização consolidada.
  */
 @Deprecated(since = "v1")
 @RestController
 @RequestMapping({"/api/v1/perfil", "/api/perfil"})
 @Tag(name = "Perfil Legado (Compatibilidade)", description = "Endpoints de compatibilidade com versões antigas do mobile. Recomenda-se migrar para /api/v1/usuarios/{id}/perfil.")
+@SecurityRequirement(name = "bearerAuth")
 public class PerfilController {
 
     @Autowired
@@ -44,12 +48,17 @@ public class PerfilController {
     @Autowired
     private AptidaoRepository aptidaoRepository;
 
+    @Autowired
+    private ResourceOwnershipService ownershipService;
+
     @Operation(summary = "Atualizar perfil aluno (legado)", deprecated = true)
+    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/aluno/{id}")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String, Object>>> atualizarAluno(
             @PathVariable Long id, @RequestBody PerfilAtualizacaoDTO dto) {
         
+        ownershipService.validarAcessoAluno(id);
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
 
@@ -81,11 +90,13 @@ public class PerfilController {
     }
 
     @Operation(summary = "Atualizar perfil professor (legado)", deprecated = true)
+    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/professor/{id}")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String, Object>>> atualizarProfessor(
             @PathVariable Long id, @RequestBody PerfilAtualizacaoDTO dto) {
         
+        ownershipService.validarAcessoDocente(id);
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
 
@@ -118,8 +129,10 @@ public class PerfilController {
     }
 
     @Operation(summary = "Obter dados do perfil aluno (legado)", deprecated = true)
+    @PreAuthorize("(hasRole('ALUNO') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @GetMapping("/aluno/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> obterAluno(@PathVariable Long id) {
+        ownershipService.validarAcessoAluno(id);
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
 
@@ -137,8 +150,10 @@ public class PerfilController {
     }
 
     @Operation(summary = "Obter dados do perfil professor (legado)", deprecated = true)
+    @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @GetMapping("/professor/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> obterProfessor(@PathVariable Long id) {
+        ownershipService.validarAcessoDocente(id);
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado com ID: " + id));
 
