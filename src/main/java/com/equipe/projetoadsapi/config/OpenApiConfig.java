@@ -28,8 +28,8 @@ import org.springframework.context.annotation.Configuration;
                       "Arquitetura de Monólito Modular (Spring Boot 3.4.5, Java 17, PostgreSQL, JWT). " +
                       "Atende ao aplicativo móvel React Native e interfaces web administrativas a custo zero.",
         contact = @Contact(
-            name = "Equipe ADS - P4 (Orienta)",
-            email = "orienta.projeto.ads@gmail.com",
+            name = "Equipe Orienta",
+            email = "contato@orienta.com.br",
             url = "https://github.com/JorbsonSilva/projeto-ads-p4-api"
         ),
         license = @License(
