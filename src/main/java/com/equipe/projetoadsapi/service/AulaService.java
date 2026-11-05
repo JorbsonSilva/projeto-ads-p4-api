@@ -95,14 +95,18 @@ public class AulaService {
         }
 
         // Se ambos deram check-in, o cronômetro do servidor é disparado (início bilateral)
-        if (Boolean.TRUE.equals(sessao.getAlunoCheckin()) && Boolean.TRUE.equals(sessao.getProfessorCheckin()) 
-                && sessao.getStatusSessao() == StatusSessao.AGUARDANDO_CHECKIN) {
-            sessao.setStatusSessao(StatusSessao.EM_ANDAMENTO);
-            sessao.setInicioEfetivo(agora);
-            agendamento.setStatus(StatusAgendamento.EM_ANDAMENTO);
-            agendamentoRepository.save(agendamento);
+        if (Boolean.TRUE.equals(sessao.getAlunoCheckin()) && Boolean.TRUE.equals(sessao.getProfessorCheckin())) {
+            if (sessao.getStatusSessao() == StatusSessao.AGUARDANDO_CHECKIN || sessao.getStatusSessao() == StatusSessao.TOLERANCIA) {
+                sessao.setStatusSessao(StatusSessao.EM_ANDAMENTO);
+                sessao.setInicioEfetivo(agora);
+                agendamento.setStatus(StatusAgendamento.EM_ANDAMENTO);
+                agendamentoRepository.save(agendamento);
 
-            registrarEvento(sessao, TipoEventoAula.INICIO_AULA, null, "Início bilateral confirmado: cronômetro oficial ativo", 0);
+                registrarEvento(sessao, TipoEventoAula.INICIO_AULA, null, "Início bilateral confirmado: cronômetro oficial ativo", 0);
+            }
+        } else if (Boolean.TRUE.equals(sessao.getAlunoCheckin()) ^ Boolean.TRUE.equals(sessao.getProfessorCheckin())) {
+            // Enquanto houver apenas um participante, o status permanece em TOLERANCIA (15 min) e o cronômetro oficial NÃO avança
+            sessao.setStatusSessao(StatusSessao.TOLERANCIA);
         }
 
         SessaoAula salva = sessaoRepository.save(sessao);
@@ -117,7 +121,7 @@ public class AulaService {
         SessaoAula sessao = sessaoRepository.findByAgendamentoId(agendamentoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Sessão não encontrada para o agendamento: " + agendamentoId));
 
-        if (sessao.getStatusSessao() != StatusSessao.EM_ANDAMENTO) {
+        if (sessao.getStatusSessao() != StatusSessao.EM_ANDAMENTO && sessao.getStatusSessao() != StatusSessao.FINALIZANDO) {
             throw new RegraNegocioException("Apenas aulas em andamento podem ser pausadas.");
         }
 
@@ -150,9 +154,15 @@ public class AulaService {
             sessao.setSegundosPausados((sessao.getSegundosPausados() != null ? sessao.getSegundosPausados() : 0) + (int) deltaPausa);
             sessao.setUltimaPausaEm(null);
         }
-        sessao.setStatusSessao(StatusSessao.EM_ANDAMENTO);
 
         int decorrido = calcularSegundosDecorridos(sessao);
+        int restante = Math.max(0, 3600 - decorrido);
+        if (restante <= 300 && restante > 0) {
+            sessao.setStatusSessao(StatusSessao.FINALIZANDO);
+        } else {
+            sessao.setStatusSessao(StatusSessao.EM_ANDAMENTO);
+        }
+
         registrarEvento(sessao, TipoEventoAula.RETOMADA, autor, "Aula retomada", decorrido);
 
         SessaoAula salva = sessaoRepository.save(sessao);

@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.*;
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import com.equipe.projetoadsapi.security.SecurityUtils;
 import com.equipe.projetoadsapi.service.AulaService;
@@ -17,7 +18,7 @@ import java.util.Map;
 
 /**
  * CONTROLLER DE AULAS AO VIVO, CRONÔMETRO E AVALIAÇÕES (v1).
- * Rastreabilidade: Fase 6 - f6-t1..f6-t8
+ * Rastreabilidade: Fase 6 - f6-t1..f6-t8 | Fase 7 - BACK-007
  */
 @RestController
 @RequestMapping({"/api/v1/aulas", "/api/aulas"})
@@ -42,21 +43,19 @@ public class AulaController {
     @PostMapping("/{agendamentoId}/checkin")
     public ResponseEntity<ApiResponse<SessaoAulaDTO>> checkin(
             @PathVariable Long agendamentoId,
-            @RequestBody Map<String, Long> payload) {
-        Long usuarioId = payload.get("usuarioId");
-        ownershipService.validarPropriedadeUsuario(usuarioId);
+            @RequestBody(required = false) Map<String, Object> payload) {
+        Long usuarioId = extrairEValidarUsuarioId(payload);
         SessaoAulaDTO sessao = aulaService.realizarCheckin(agendamentoId, usuarioId);
         return ResponseEntity.ok(ApiResponse.ok(sessao, "Check-in registrado com sucesso"));
     }
 
-    @Operation(summary = "Pausar aula", description = "Pausa o cronômetro oficial no servidor por consentimento.")
+    @Operation(summary = "Pausar aula", description = "Pausa o cronômetro oficial no servidor por consentimento mútuo.")
     @PostMapping("/{agendamentoId}/pausar")
     public ResponseEntity<ApiResponse<SessaoAulaDTO>> pausar(
             @PathVariable Long agendamentoId,
-            @RequestBody Map<String, Object> payload) {
-        Long usuarioId = ((Number) payload.get("usuarioId")).longValue();
-        String motivo = (String) payload.get("motivo");
-        ownershipService.validarPropriedadeUsuario(usuarioId);
+            @RequestBody(required = false) Map<String, Object> payload) {
+        Long usuarioId = extrairEValidarUsuarioId(payload);
+        String motivo = payload != null && payload.get("motivo") != null ? (String) payload.get("motivo") : "Pausa solicitada";
         SessaoAulaDTO sessao = aulaService.pausarAula(agendamentoId, usuarioId, motivo);
         return ResponseEntity.ok(ApiResponse.ok(sessao, "Aula pausada"));
     }
@@ -65,9 +64,8 @@ public class AulaController {
     @PostMapping("/{agendamentoId}/retomar")
     public ResponseEntity<ApiResponse<SessaoAulaDTO>> retomar(
             @PathVariable Long agendamentoId,
-            @RequestBody Map<String, Long> payload) {
-        Long usuarioId = payload.get("usuarioId");
-        ownershipService.validarPropriedadeUsuario(usuarioId);
+            @RequestBody(required = false) Map<String, Object> payload) {
+        Long usuarioId = extrairEValidarUsuarioId(payload);
         SessaoAulaDTO sessao = aulaService.retomarAula(agendamentoId, usuarioId);
         return ResponseEntity.ok(ApiResponse.ok(sessao, "Aula retomada"));
     }
@@ -76,9 +74,8 @@ public class AulaController {
     @PostMapping("/{agendamentoId}/finalizar")
     public ResponseEntity<ApiResponse<SessaoAulaDTO>> finalizar(
             @PathVariable Long agendamentoId,
-            @RequestBody Map<String, Long> payload) {
-        Long usuarioId = payload.get("usuarioId");
-        ownershipService.validarPropriedadeUsuario(usuarioId);
+            @RequestBody(required = false) Map<String, Object> payload) {
+        Long usuarioId = extrairEValidarUsuarioId(payload);
         SessaoAulaDTO sessao = aulaService.finalizarAula(agendamentoId, usuarioId);
         return ResponseEntity.ok(ApiResponse.ok(sessao, "Confirmação de encerramento registrada"));
     }
@@ -88,11 +85,31 @@ public class AulaController {
     @PostMapping("/{agendamentoId}/avaliar")
     public ResponseEntity<ApiResponse<AvaliacaoResponseDTO>> avaliar(
             @PathVariable Long agendamentoId,
-            @RequestParam Long avaliadorId,
+            @RequestParam(required = false) Long avaliadorId,
             @Valid @RequestBody AvaliacaoRequestDTO dto) {
+        if (avaliadorId == null) {
+            avaliadorId = SecurityUtils.getUsuarioAutenticadoId();
+        }
+        if (avaliadorId == null) {
+            throw new RegraNegocioException("ID do avaliador não informado.");
+        }
         ownershipService.validarPropriedadeUsuario(avaliadorId);
         AvaliacaoResponseDTO avaliacao = aulaService.avaliarAula(agendamentoId, avaliadorId, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(avaliacao, "Avaliação enviada com sucesso! Obrigado pelo feedback."));
+    }
+
+    private Long extrairEValidarUsuarioId(Map<String, Object> payload) {
+        Long usuarioId = null;
+        if (payload != null && payload.get("usuarioId") != null) {
+            usuarioId = ((Number) payload.get("usuarioId")).longValue();
+        } else {
+            usuarioId = SecurityUtils.getUsuarioAutenticadoId();
+        }
+        if (usuarioId == null) {
+            throw new RegraNegocioException("ID do usuário participante não informado.");
+        }
+        ownershipService.validarPropriedadeUsuario(usuarioId);
+        return usuarioId;
     }
 }

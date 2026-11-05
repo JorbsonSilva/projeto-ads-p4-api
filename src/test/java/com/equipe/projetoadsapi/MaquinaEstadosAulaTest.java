@@ -122,7 +122,7 @@ public class MaquinaEstadosAulaTest {
     }
 
     @Test
-    @DisplayName("Deve manter AGUARDANDO_CHECKIN quando apenas um participante realiza check-in")
+    @DisplayName("Deve transitar para TOLERANCIA quando apenas um participante realiza check-in")
     void testCheckinUnilateral() {
         SessaoAula sessao = SessaoAula.builder()
                 .id(100L)
@@ -142,7 +142,7 @@ public class MaquinaEstadosAulaTest {
 
         assertTrue(dto.getAlunoCheckin());
         assertFalse(dto.getProfessorCheckin());
-        assertEquals(StatusSessao.AGUARDANDO_CHECKIN, dto.getStatusSessao());
+        assertEquals(StatusSessao.TOLERANCIA, dto.getStatusSessao());
         verify(eventoRepository, times(1)).save(any(AulaEvento.class));
     }
 
