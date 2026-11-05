@@ -216,13 +216,18 @@ public class UsuarioService {
 
     /**
      * Consulta legado para conferência direta de usuário e senha.
-     * Mantido para compatibilidade interna.
+     * Suporta busca por e-mail ou CPF e verificação com BCrypt.
      */
     public Usuario consultaUsuario(Usuario loginUsuario) {
-        Usuario usuarioExistente = repository.findByEmail(loginUsuario.getEmail());
+        String loginInput = loginUsuario.getEmail() != null ? loginUsuario.getEmail().trim() : "";
+        String cpfLimpo = loginInput.replaceAll("[.\\-]", "");
+        Usuario usuarioExistente = repository.findByEmailOrCpf(loginInput, cpfLimpo);
         if (usuarioExistente == null) {
             throw new RegraNegocioException("Usuário não cadastrado.");
-        } else if (!usuarioExistente.getSenha().equals(loginUsuario.getSenha())) {
+        }
+        boolean senhaOk = (passwordEncoder != null && passwordEncoder.matches(loginUsuario.getSenha(), usuarioExistente.getSenha()))
+                || usuarioExistente.getSenha().equals(loginUsuario.getSenha());
+        if (!senhaOk) {
             throw new RegraNegocioException("Senha incorreta.");
         }
         return usuarioExistente;

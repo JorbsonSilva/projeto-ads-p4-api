@@ -227,4 +227,47 @@ public class AuthControllerTest {
 
         verify(usuarioService, times(1)).reenviarCodigoVerificacao("beatriz@orienta.edu.br");
     }
+
+    /**
+     * TESTE 7: Renovação de Token (Refresh Token).
+     */
+    @Test
+    @DisplayName("Deve renovar token de acesso a partir de um refresh token válido")
+    void deveRenovarTokenComSucesso() throws Exception {
+        com.equipe.projetoadsapi.dto.RefreshTokenRequestDTO request = new com.equipe.projetoadsapi.dto.RefreshTokenRequestDTO("valid.refresh.token");
+
+        AuthResponseDTO responseDTO = AuthResponseDTO.builder()
+                .token("new.jwt.access.token")
+                .refreshToken("valid.refresh.token")
+                .tipoToken("Bearer")
+                .expiresIn(86400L)
+                .build();
+
+        when(authService.renovarToken("valid.refresh.token")).thenReturn(responseDTO);
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.token").value("new.jwt.access.token"))
+                .andExpect(jsonPath("$.data.accessToken").value("new.jwt.access.token"));
+
+        verify(authService, times(1)).renovarToken("valid.refresh.token");
+    }
+
+    /**
+     * TESTE 8: Encerramento de sessão (Logout).
+     */
+    @Test
+    @DisplayName("Deve realizar logout e revogar sessão")
+    void deveFazerLogoutComSucesso() throws Exception {
+        doNothing().when(authService).logout(any());
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer jwt.token.mock"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("LOGGED_OUT"));
+    }
 }

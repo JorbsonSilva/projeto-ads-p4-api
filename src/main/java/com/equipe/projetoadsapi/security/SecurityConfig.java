@@ -45,17 +45,27 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Endpoints Públicos de Autenticação (Login, Cadastro e Ativação de E-mail)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/cadastrar").permitAll()
+                        // 1. Endpoints Públicos de Autenticação JWT e Onboarding
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/cadastrar", "/api/v1/auth/cadastro", "/api/v1/auth/registro").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/verificar-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/reenviar-codigo").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
 
-                        // 2. Documentação e Especificação OpenAPI / Swagger
+                        // 2. Endpoints Públicos Legados de Usuários (Login, Cadastro e Ativação)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/login", "/api/usuarios/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/cadastro", "/api/v1/usuarios/registro").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/verificar-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/reenviar-verificacao").permitAll()
+
+                        // 3. Health Check da API (público para monitoramento da bancada e infraestrutura)
+                        .requestMatchers("/api/v1/health", "/api/health").permitAll()
+
+                        // 4. Documentação e Especificação OpenAPI / Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // 3. Qualquer outra rota exige token JWT Bearer válido
+                        // 5. Qualquer outra rota exige token JWT Bearer válido
                         .anyRequest().authenticated()
                 )
                 // Insere o filtro JWT antes do filtro padrão de autenticação do Spring

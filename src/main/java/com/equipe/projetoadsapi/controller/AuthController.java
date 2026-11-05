@@ -88,7 +88,7 @@ public class AuthController {
      * Valida unicidade, criptografa a senha e dispara o código de 6 dígitos por e-mail.
      */
     @Operation(summary = "Iniciar cadastro de usuário", description = "Registra intenção de cadastro, valida unicidade de CPF/e-mail e dispara código de 6 dígitos via e-mail.")
-    @PostMapping("/cadastro")
+    @PostMapping({"/cadastro", "/cadastrar", "/registro"})
     public ResponseEntity<ApiResponse<Map<String, String>>> iniciarCadastro(@Valid @RequestBody UsuarioCadastroRequestDTO dto) {
         Usuario novo = new Usuario();
         novo.setNome(dto.getNome());
@@ -118,7 +118,10 @@ public class AuthController {
     @PostMapping("/verificar-email")
     public ResponseEntity<ApiResponse<AuthResponseDTO>> verificarEmail(@RequestBody Map<String, String> body) {
         String email = body.get("email");
-        String codigo = body.get("codigo");
+        String codigo = body.get("codigo") != null ? body.get("codigo") : body.get("codigoVerificacao");
+        if (codigo == null) {
+            codigo = body.get("pin");
+        }
 
         if (email == null || codigo == null) {
             throw new IllegalArgumentException("E-mail e código de verificação são obrigatórios.");
