@@ -219,14 +219,15 @@ public class AulaService {
     }
 
     /**
-     * Avaliação pós-aula (liberada exclusivamente após atingir REALIZADA)
+     * Avaliação pós-aula (liberada exclusivamente após atingir status REALIZADA).
+     * Rastreabilidade: Fase 6 - f6-t8 | Fase 7 - BACK-008 (RN-001)
      */
     @Transactional
     public AvaliacaoResponseDTO avaliarAula(Long agendamentoId, Long avaliadorId, AvaliacaoRequestDTO dto) {
         Agendamento agendamento = agendamentoRepository.findById(agendamentoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Agendamento não encontrado: " + agendamentoId));
 
-        // Regra de Negócio: Avaliação só é liberada se status for REALIZADA
+        // 1. Validação estrita de status: a mentoria vinculada DEVE obrigatoriamente estar no status REALIZADA
         if (agendamento.getStatus() != StatusAgendamento.REALIZADA) {
             throw new RegraNegocioException("A avaliação de aula só é liberada após a conclusão mútua (status REALIZADA). Status atual: " + agendamento.getStatus());
         }
@@ -234,47 +235,107 @@ public class AulaService {
         Usuario avaliador = usuarioRepository.findById(avaliadorId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário avaliador não encontrado: " + avaliadorId));
 
-        // Impede avaliação duplicada pelo mesmo usuário na mesma aula
+        // 2. Bloqueio de auto-avaliação (RN-001): um professor não pode avaliar a si mesmo
+        if (agendamento.getProfessor().getId().equals(avaliadorId)) {
+            throw new RegraNegocioException("Auto-avaliação bloqueada: o professor não pode avaliar a sua própria mentoria.");
+        }
+
+        // Validação de vínculo: apenas o aluno participante da aula pode avaliar o docente
+        if (!agendamento.getAluno().getId().equals(avaliadorId)) {
+            throw new RegraNegocioException("Apenas o aluno vinculado a esta mentoria pode enviar a avaliação do docente.");
+        }
+
+        Usuario avaliado = agendamento.getProfessor();
+        if (avaliadorId.equals(avaliado.getId())) {
+            throw new RegraNegocioException("Não é permitido avaliar a si mesmo.");
+        }
+
+        // 3. Bloqueio de duplicidade: cada participante só pode avaliar a mentoria uma única vez
         if (avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(agendamentoId, avaliadorId)) {
             throw new RegraNegocioException("Você já enviou sua avaliação para esta aula.");
         }
 
-        Usuario avaliado;
-        if (agendamento.getAluno().getId().equals(avaliadorId)) {
-            avaliado = agendamento.getProfessor();
-        } else if (agendamento.getProfessor().getId().equals(avaliadorId)) {
-            avaliado = agendamento.getAluno();
-        } else {
-            throw new RegraNegocioException("Apenas o aluno ou o professor desta aula podem enviar avaliações.");
+        // 4. Sub-critérios pedagógicos e notas de 1 a 5 estrelas
+        Integer notaFinal = dto.obterNotaFinal();
+        if (notaFinal == null || notaFinal < 1 || notaFinal > 5) {
+            throw new RegraNegocioException("A nota geral da avaliação é obrigatória e deve estar entre 1 e 5 estrelas.");
+        }
+
+        Integer pontualidadeFinal = dto.obterPontualidadeFinal();
+        if (pontualidadeFinal == null || pontualidadeFinal < 1 || pontualidadeFinal > 5) {
+            pontualidadeFinal = notaFinal;
+        }
+
+        Integer didaticaFinal = dto.obterDidaticaFinal();
+        if (didaticaFinal == null || didaticaFinal < 1 || didaticaFinal > 5) {
+            didaticaFinal = notaFinal;
+        }
+
+        Integer dominioFinal = dto.obterDominioFinal();
+        if (dominioFinal == null || dominioFinal < 1 || dominioFinal > 5) {
+            dominioFinal = notaFinal;
+        }
+
+        // Concatena tags de elogios ao comentário se fornecidas
+        String comentarioFinal = dto.getComentario();
+        List<String> tags = dto.getTags() != null ? dto.getTags() : dto.getTagsSelecionadas();
+        if (tags != null && !tags.isEmpty()) {
+            String tagsFormatadas = "[Elogios: " + String.join(", ", tags) + "]";
+            if (comentarioFinal != null && !comentarioFinal.isBlank()) {
+                comentarioFinal = comentarioFinal + " " + tagsFormatadas;
+            } else {
+                comentarioFinal = tagsFormatadas;
+            }
         }
 
         Avaliacao avaliacao = Avaliacao.builder()
                 .agendamento(agendamento)
                 .avaliador(avaliador)
                 .avaliado(avaliado)
-                .nota(dto.getNota())
-                .pontualidade(dto.getPontualidade() != null ? dto.getPontualidade() : dto.getNota())
-                .didatica(dto.getDidatica() != null ? dto.getDidatica() : dto.getNota())
-                .comentario(dto.getComentario())
+                .nota(notaFinal)
+                .pontualidade(pontualidadeFinal)
+                .didatica(didaticaFinal)
+                .dominio(dominioFinal)
+                .comentario(comentarioFinal)
+                .criadaEm(Instant.now())
                 .build();
 
         Avaliacao salva = avaliacaoRepository.save(avaliacao);
 
-        // Atualiza a média de notas e total de avaliações do avaliado
+        // 5. Recálculo atômico e transacional da nota média do professor e incremento de total_avaliacoes
         atualizarMediaUsuario(avaliado);
 
         return AvaliacaoResponseDTO.fromEntity(salva);
     }
 
-    private void atualizarMediaUsuario(Usuario usuario) {
+    /**
+     * Consulta a avaliação registrada para um determinado agendamento
+     */
+    @Transactional(readOnly = true)
+    public AvaliacaoResponseDTO obterAvaliacaoPorAgendamento(Long agendamentoId) {
+        Avaliacao avaliacao = avaliacaoRepository.findByAgendamentoId(agendamentoId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Nenhuma avaliação encontrada para o agendamento: " + agendamentoId));
+        return AvaliacaoResponseDTO.fromEntity(avaliacao);
+    }
+
+    /**
+     * Recálculo atômico e transacional da nota média do docente (nota_media) e total de avaliações.
+     * Rastreabilidade: Fase 7 - BACK-008
+     */
+    @Transactional
+    public void atualizarMediaUsuario(Usuario usuario) {
         List<Avaliacao> avaliacoes = avaliacaoRepository.findByAvaliadoId(usuario.getId());
         if (!avaliacoes.isEmpty()) {
             double soma = avaliacoes.stream().mapToInt(Avaliacao::getNota).sum();
             double media = soma / avaliacoes.size();
-            usuario.setNotaMedia(Math.round(media * 10.0) / 10.0);
+            double mediaArredondada = Math.round(media * 10.0) / 10.0;
+            usuario.setNotaMedia(mediaArredondada);
             usuario.setTotalAvaliacoes(avaliacoes.size());
-            usuarioRepository.save(usuario);
+        } else {
+            usuario.setNotaMedia(5.0);
+            usuario.setTotalAvaliacoes(0);
         }
+        usuarioRepository.saveAndFlush(usuario);
     }
 
     private int calcularSegundosDecorridos(SessaoAula sessao) {

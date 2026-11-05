@@ -356,7 +356,7 @@ public class AulaServiceTest {
     }
 
     @Test
-    @DisplayName("Deve permitir avaliação exclusivamente após agendamento atingir status REALIZADA")
+    @DisplayName("Deve permitir avaliação exclusivamente após agendamento atingir status REALIZADA e recalcular média docente")
     void devePermitirAvaliacaoApenasAposRealizada() {
         agendamentoConfirmado.setStatus(StatusAgendamento.REALIZADA);
 
@@ -368,12 +368,25 @@ public class AulaServiceTest {
             av.setId(888L);
             return av;
         });
-        when(avaliacaoRepository.findByAvaliadoId(2L)).thenReturn(Collections.emptyList());
 
-        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder()
+        // Simula que após salvar, o professor tem a nova avaliação com nota 5
+        Avaliacao avExistente = Avaliacao.builder()
+                .id(888L)
                 .nota(5)
                 .didatica(5)
-                .pontualidade(5)
+                .pontualidade(4)
+                .dominio(5)
+                .avaliado(professor)
+                .build();
+        when(avaliacaoRepository.findByAvaliadoId(2L)).thenReturn(java.util.List.of(avExistente));
+        when(usuarioRepository.saveAndFlush(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder()
+                .notaGeral(5)
+                .notaDidatica(5)
+                .notaPontualidade(4)
+                .notaDominio(5)
+                .tagsSelecionadas(java.util.List.of("Pontual", "Claro"))
                 .comentario("Excelente aula de Cálculo!")
                 .build();
 
@@ -381,8 +394,126 @@ public class AulaServiceTest {
 
         assertNotNull(resp);
         assertEquals(5, resp.getNota());
+        assertEquals(5, resp.getDidatica());
+        assertEquals(4, resp.getPontualidade());
+        assertEquals(5, resp.getDominio());
         assertEquals(100L, resp.getAgendamentoId());
         assertEquals("Lucas Silveira", resp.getNomeAvaliador());
+        assertEquals("Prof. Ricardo Santos", resp.getNomeAvaliado());
+        assertEquals(5.0, resp.getNovaMediaDocente());
+        assertEquals(1, resp.getNovoTotalAvaliacoes());
+        assertEquals(5.0, professor.getNotaMedia());
+        assertEquals(1, professor.getTotalAvaliacoes());
+        verify(usuarioRepository, times(1)).saveAndFlush(professor);
+    }
+
+    @Test
+    @DisplayName("Deve recalcular média docente com arredondamento de 1 casa decimal ao registrar avaliações")
+    void deveRecalcularMediaDocenteComArredondamento() {
+        agendamentoConfirmado.setStatus(StatusAgendamento.REALIZADA);
+
+        when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(agendamentoConfirmado));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(aluno));
+        when(avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(100L, 1L)).thenReturn(false);
+        when(avaliacaoRepository.save(any(Avaliacao.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Notas: 5, 4, 5 -> média = 14 / 3 = 4.666... -> 4.7
+        Avaliacao av1 = Avaliacao.builder().nota(5).build();
+        Avaliacao av2 = Avaliacao.builder().nota(4).build();
+        Avaliacao av3 = Avaliacao.builder().nota(5).build();
+        when(avaliacaoRepository.findByAvaliadoId(2L)).thenReturn(java.util.List.of(av1, av2, av3));
+        when(usuarioRepository.saveAndFlush(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder()
+                .nota(5)
+                .didatica(4)
+                .pontualidade(5)
+                .dominio(5)
+                .build();
+
+        AvaliacaoResponseDTO resp = aulaService.avaliarAula(100L, 1L, dto);
+
+        assertEquals(4.7, resp.getNovaMediaDocente());
+        assertEquals(3, resp.getNovoTotalAvaliacoes());
+        assertEquals(4.7, professor.getNotaMedia());
+        assertEquals(3, professor.getTotalAvaliacoes());
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar auto-avaliação do professor (RN-001)")
+    void deveRejeitarAutoAvaliacaoDoProfessor() {
+        agendamentoConfirmado.setStatus(StatusAgendamento.REALIZADA);
+        when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(agendamentoConfirmado));
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(professor));
+
+        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder().nota(5).build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+            aulaService.avaliarAula(100L, 2L, dto);
+        });
+
+        assertTrue(ex.getMessage().contains("O professor não pode avaliar a si mesmo"));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar avaliação de aluno terceiro não vinculado ao agendamento")
+    void deveRejeitarAvaliacaoDeTerceiroNaoParticipante() {
+        agendamentoConfirmado.setStatus(StatusAgendamento.REALIZADA);
+        when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(agendamentoConfirmado));
+        when(usuarioRepository.findById(99L)).thenReturn(Optional.of(terceiro));
+
+        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder().nota(5).build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+            aulaService.avaliarAula(100L, 99L, dto);
+        });
+
+        assertTrue(ex.getMessage().contains("Apenas o aluno vinculado a esta aula pode enviar avaliação para o professor"));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar duplicidade de avaliação para o mesmo agendamento")
+    void deveRejeitarDuplicidadeDeAvaliacao() {
+        agendamentoConfirmado.setStatus(StatusAgendamento.REALIZADA);
+        when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(agendamentoConfirmado));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(aluno));
+        when(avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(100L, 1L)).thenReturn(true);
+
+        AvaliacaoRequestDTO dto = AvaliacaoRequestDTO.builder().nota(5).build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+            aulaService.avaliarAula(100L, 1L, dto);
+        });
+
+        assertTrue(ex.getMessage().contains("Você já enviou uma avaliação para esta mentoria"));
+    }
+
+    @Test
+    @DisplayName("Deve obter avaliação previamente registrada para o agendamento")
+    void deveObterAvaliacaoPorAgendamento() {
+        Avaliacao avaliacao = Avaliacao.builder()
+                .id(777L)
+                .agendamento(agendamentoConfirmado)
+                .avaliador(aluno)
+                .avaliado(professor)
+                .nota(5)
+                .didatica(5)
+                .pontualidade(4)
+                .dominio(5)
+                .comentario("Aula fantástica!")
+                .build();
+
+        when(avaliacaoRepository.findByAgendamentoId(100L)).thenReturn(Optional.of(avaliacao));
+
+        AvaliacaoResponseDTO resp = aulaService.obterAvaliacaoPorAgendamento(100L);
+
+        assertNotNull(resp);
+        assertEquals(777L, resp.getId());
+        assertEquals(5, resp.getNota());
+        assertEquals(5, resp.getDidatica());
+        assertEquals(4, resp.getPontualidade());
+        assertEquals(5, resp.getDominio());
+        assertEquals("Aula fantástica!", resp.getComentario());
     }
 
     @Test

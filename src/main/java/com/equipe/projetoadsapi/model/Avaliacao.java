@@ -47,6 +47,8 @@ public class Avaliacao {
 
     private Integer didatica; // 1 a 5
 
+    private Integer dominio; // 1 a 5 (BACK-008)
+
     @Column(columnDefinition = "TEXT")
     private String comentario;
 

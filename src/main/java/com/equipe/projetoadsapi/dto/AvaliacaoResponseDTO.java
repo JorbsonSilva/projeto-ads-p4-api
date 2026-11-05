@@ -11,7 +11,7 @@ import java.time.Instant;
 
 /**
  * DTO de resposta para avaliação registrada.
- * Rastreabilidade: Fase 6 - f6-t8
+ * Rastreabilidade: Fase 6 - f6-t8 | Fase 7 - BACK-008
  */
 @Data
 @Builder
@@ -29,11 +29,17 @@ public class AvaliacaoResponseDTO {
     private Integer nota;
     private Integer pontualidade;
     private Integer didatica;
+    private Integer dominio;
     private String comentario;
+    private Double novaMediaDocente;
+    private Integer novoTotalAvaliacoes;
     private Instant criadaEm;
 
     public static AvaliacaoResponseDTO fromEntity(Avaliacao a) {
         if (a == null) return null;
+
+        Double mediaDocente = (a.getAvaliado() != null) ? a.getAvaliado().getNotaMedia() : null;
+        Integer total = (a.getAvaliado() != null) ? a.getAvaliado().getTotalAvaliacoes() : null;
 
         return AvaliacaoResponseDTO.builder()
                 .id(a.getId())
@@ -45,7 +51,10 @@ public class AvaliacaoResponseDTO {
                 .nota(a.getNota())
                 .pontualidade(a.getPontualidade())
                 .didatica(a.getDidatica())
+                .dominio(a.getDominio())
                 .comentario(a.getComentario())
+                .novaMediaDocente(mediaDocente)
+                .novoTotalAvaliacoes(total)
                 .criadaEm(a.getCriadaEm())
                 .build();
     }

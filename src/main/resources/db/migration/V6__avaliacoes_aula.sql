@@ -12,10 +12,13 @@ CREATE TABLE IF NOT EXISTS tb_avaliacoes (
     nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
     pontualidade INTEGER CHECK (pontualidade >= 1 AND pontualidade <= 5),
     didatica INTEGER CHECK (didatica >= 1 AND didatica <= 5),
+    dominio INTEGER CHECK (dominio >= 1 AND dominio <= 5),
     comentario TEXT,
     criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_avaliacao_agendamento_avaliador UNIQUE (agendamento_id, avaliador_id)
 );
+
+ALTER TABLE tb_avaliacoes ADD COLUMN IF NOT EXISTS dominio INTEGER CHECK (dominio >= 1 AND dominio <= 5);
 
 CREATE INDEX IF NOT EXISTS idx_tb_avaliacoes_avaliado ON tb_avaliacoes(avaliado_id);
 CREATE INDEX IF NOT EXISTS idx_tb_avaliacoes_agendamento ON tb_avaliacoes(agendamento_id);

@@ -87,6 +87,9 @@ public class AulaController {
             @PathVariable Long agendamentoId,
             @RequestParam(required = false) Long avaliadorId,
             @Valid @RequestBody AvaliacaoRequestDTO dto) {
+        if (avaliadorId == null && dto != null) {
+            avaliadorId = dto.getAvaliadorId();
+        }
         if (avaliadorId == null) {
             avaliadorId = SecurityUtils.getUsuarioAutenticadoId();
         }
@@ -97,6 +100,13 @@ public class AulaController {
         AvaliacaoResponseDTO avaliacao = aulaService.avaliarAula(agendamentoId, avaliadorId, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(avaliacao, "Avaliação enviada com sucesso! Obrigado pelo feedback."));
+    }
+
+    @Operation(summary = "Consultar avaliação da aula", description = "Retorna os dados da avaliação registrada para a mentoria.")
+    @GetMapping("/{agendamentoId}/avaliacao")
+    public ResponseEntity<ApiResponse<AvaliacaoResponseDTO>> obterAvaliacao(@PathVariable Long agendamentoId) {
+        AvaliacaoResponseDTO avaliacao = aulaService.obterAvaliacaoPorAgendamento(agendamentoId);
+        return ResponseEntity.ok(ApiResponse.ok(avaliacao, "Avaliação recuperada com sucesso"));
     }
 
     private Long extrairEValidarUsuarioId(Map<String, Object> payload) {
