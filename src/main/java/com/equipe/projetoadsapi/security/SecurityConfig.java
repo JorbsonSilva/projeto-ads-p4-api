@@ -79,6 +79,12 @@ public class SecurityConfig {
                         // Rotas exclusivas de Docentes e Financeiras: bloqueio estrito para ALUNO
                         .requestMatchers("/api/v1/professores/*/financeiro/**", "/api/professores/*/financeiro/**").hasAnyRole("PROFESSOR", "ADMIN")
                         .requestMatchers("/api/v1/saques/**", "/api/saques/**").hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers(
+                                "/api/v1/professores/*/alunos", "/api/professores/*/alunos", "/professores/*/alunos",
+                                "/api/v1/professores/meus-alunos", "/api/professores/meus-alunos", "/professores/meus-alunos",
+                                "/api/v1/usuarios/professores/*/alunos", "/api/usuarios/professores/*/alunos",
+                                "/api/v1/usuarios/professores/meus-alunos", "/api/usuarios/professores/meus-alunos"
+                        ).hasAnyRole("PROFESSOR", "ADMIN")
 
                         // 6. Qualquer outra rota exige token JWT Bearer válido
                         .anyRequest().authenticated()

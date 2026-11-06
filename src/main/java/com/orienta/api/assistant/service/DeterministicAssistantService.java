@@ -587,18 +587,24 @@ public class DeterministicAssistantService {
                     List<Usuario> docentes = usuarioRepository.findProfessoresPorMateriasOrdenadosPorNota(List.of(saberId));
                     if (docentes != null && !docentes.isEmpty()) {
                         return docentes.stream()
-                                .map(u -> new ProfessorResumoDTO(
-                                        u.getId(),
-                                        u.getNome(),
-                                        "Docente Certificado Orienta",
-                                        BigDecimal.valueOf(u.getPrecoHora() != null ? u.getPrecoHora() : 50.00),
-                                        u.getNotaMedia() != null ? u.getNotaMedia() : 5.0,
-                                        u.getTotalAvaliacoes() != null ? u.getTotalAvaliacoes() : 1,
-                                        Boolean.TRUE.equals(u.getOferecePresencial()) ? List.of("ONLINE", "PRESENCIAL") : List.of("ONLINE"),
-                                        u.getBairro() != null ? u.getBairro() : "Centro",
-                                        List.of(disc),
-                                        true
-                                ))
+                                .map(u -> {
+                                    BigDecimal precoDocente = (u.getAptidoes() != null && !u.getAptidoes().isEmpty() && u.getAptidoes().get(0).getPrecoHora() != null)
+                                            ? u.getAptidoes().get(0).getPrecoHora()
+                                            : new BigDecimal("50.00");
+                                    String regiao = u.getRegiaoAtendimento() != null ? u.getRegiaoAtendimento() : "Centro";
+                                    return new ProfessorResumoDTO(
+                                            u.getId(),
+                                            u.getNome(),
+                                            "Docente Certificado Orienta",
+                                            precoDocente,
+                                            u.getNotaMedia() != null ? u.getNotaMedia() : 5.0,
+                                            u.getTotalAvaliacoes() != null ? u.getTotalAvaliacoes() : 1,
+                                            Boolean.TRUE.equals(u.getOferecePresencial()) ? List.of("ONLINE", "PRESENCIAL") : List.of("ONLINE"),
+                                            regiao,
+                                            List.of(disc),
+                                            true
+                                    );
+                                })
                                 .filter(p -> p.getValorHora().compareTo(limite) <= 0)
                                 .filter(p -> "AMBAS".equals(modNorm) || p.getModalidades().contains(modNorm))
                                 .collect(Collectors.toList());

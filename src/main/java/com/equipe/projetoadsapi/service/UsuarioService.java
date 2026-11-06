@@ -12,15 +12,28 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.equipe.projetoadsapi.dto.AlunoAtendidoDTO;
 import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
+import com.equipe.projetoadsapi.model.Agendamento;
 import com.equipe.projetoadsapi.model.Aptidao;
+import com.equipe.projetoadsapi.model.Conversa;
 import com.equipe.projetoadsapi.model.Disponibilidade;
 import com.equipe.projetoadsapi.model.Interesse;
 import com.equipe.projetoadsapi.model.Saber;
+import com.equipe.projetoadsapi.model.StatusAgendamento;
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.repository.AgendamentoRepository;
+import com.equipe.projetoadsapi.repository.ConversaRepository;
 import com.equipe.projetoadsapi.repository.SaberRepository;
+import com.equipe.projetoadsapi.repository.SessaoAulaRepository;
 import com.equipe.projetoadsapi.repository.UsuarioRepository;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * SERVIÇO DE USUÁRIO (Camada de Regras de Negócio e Domínio)
@@ -48,6 +61,15 @@ public class UsuarioService {
 
     @Autowired
     private SaberRepository saberRepository;
+
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
+
+    @Autowired
+    private ConversaRepository conversaRepository;
+
+    @Autowired
+    private SessaoAulaRepository sessaoAulaRepository;
 
     @Autowired
     private JavaMailSender mailSender;
@@ -598,5 +620,153 @@ public class UsuarioService {
                     return nota2.compareTo(nota1);
                 })
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Agrega e lista os alunos atendidos por um docente em mentorias concluídas (status == REALIZADA).
+     * Rastreabilidade: Fase 7 - Bloco L (Tarefa [BACK-019]) / Requisitos RN-001 e Gestão de Alunos
+     *
+     * @param professorId Identificador do docente
+     * @return Lista agregada de alunos com métricas pedagógicas e atalhos de comunicação
+     */
+    @Transactional(readOnly = true)
+    public List<AlunoAtendidoDTO> listarAlunosAtendidosDoProfessor(Long professorId) {
+        if (professorId == null) {
+            throw new IllegalArgumentException("O ID do professor é obrigatório.");
+        }
+
+        if (!repository.existsById(professorId)) {
+            throw new RecursoNaoEncontradoException("Professor não encontrado com ID: " + professorId);
+        }
+
+        List<Agendamento> agendamentosRealizados = agendamentoRepository
+                .findByProfessorIdAndStatusOrderByDataDescHoraDesc(professorId, StatusAgendamento.REALIZADA);
+
+        if (agendamentosRealizados.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Agrupamento preservando a ordenação da mentoria mais recente
+        Map<Long, List<Agendamento>> agendamentosPorAluno = agendamentosRealizados.stream()
+                .filter(a -> a.getAluno() != null && a.getAluno().getId() != null)
+                .collect(Collectors.groupingBy(
+                        a -> a.getAluno().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<AlunoAtendidoDTO> resultado = new ArrayList<>();
+
+        for (Map.Entry<Long, List<Agendamento>> entry : agendamentosPorAluno.entrySet()) {
+            List<Agendamento> aulasDoAluno = entry.getValue();
+            Agendamento maisRecente = aulasDoAluno.get(0);
+            Usuario aluno = maisRecente.getAluno();
+
+            Long alunoId = aluno.getId();
+            String nome = aluno.getNome() != null ? aluno.getNome() : "Estudante Orienta";
+            String fotoUrl = aluno.getFotoUrl();
+            String email = aluno.getEmail();
+
+            // Extração de cidade e estado
+            String cidade = "João Pessoa";
+            String estado = "PB";
+            if (aluno.getRegiaoAtendimento() != null && !aluno.getRegiaoAtendimento().isBlank()) {
+                String reg = aluno.getRegiaoAtendimento().trim();
+                if (reg.contains("-")) {
+                    String[] parts = reg.split("-");
+                    cidade = parts[0].trim();
+                    estado = parts[1].trim();
+                } else if (reg.contains(",")) {
+                    String[] parts = reg.split(",");
+                    cidade = parts[0].trim();
+                    estado = parts[1].trim();
+                } else {
+                    cidade = reg;
+                }
+            }
+
+            String curso = "Graduação Universitária";
+            String instituicao = "UFPB";
+
+            // Totalização de aulas e horas acumuladas
+            int totalAulas = aulasDoAluno.size();
+            double horas = 0.0;
+            int countPresencial = 0;
+            int countOnline = 0;
+
+            for (Agendamento aula : aulasDoAluno) {
+                var sessaoOpt = sessaoAulaRepository.findByAgendamentoId(aula.getId());
+                if (sessaoOpt.isPresent() && sessaoOpt.get().getDuracaoTotalSegundos() != null && sessaoOpt.get().getDuracaoTotalSegundos() > 0) {
+                    horas += sessaoOpt.get().getDuracaoTotalSegundos() / 3600.0;
+                } else {
+                    horas += 1.0; // Padrão 1h por aula realizada
+                }
+
+                if ("PRESENCIAL".equalsIgnoreCase(aula.getModalidade())) {
+                    countPresencial++;
+                } else {
+                    countOnline++;
+                }
+            }
+            horas = Math.round(horas * 10.0) / 10.0;
+
+            String dataUltimaAula = maisRecente.getData() != null ? maisRecente.getData().toString() : "Recente";
+
+            // Disciplinas cursadas distintas
+            List<String> disciplinas = aulasDoAluno.stream()
+                    .map(a -> {
+                        if (a.getSaber() != null && a.getSaber().getNome() != null && !a.getSaber().getNome().isBlank()) {
+                            return a.getSaber().getNome();
+                        }
+                        if (a.getAssunto() != null && !a.getAssunto().isBlank()) {
+                            return a.getAssunto();
+                        }
+                        return "Mentoria Geral";
+                    })
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // Atalhos de agendamento e conversa
+            Long agendamentoIdMaisRecente = maisRecente.getId();
+            Long conversaId = conversaRepository.findByAgendamentoId(agendamentoIdMaisRecente)
+                    .map(Conversa::getId)
+                    .orElse(null);
+
+            // Formato preferido
+            String formatoPreferido = "ONLINE";
+            if (countPresencial > 0 && countOnline > 0) {
+                formatoPreferido = "HIBRIDO";
+            } else if (countPresencial > 0) {
+                formatoPreferido = "PRESENCIAL";
+            }
+
+            AlunoAtendidoDTO dto = AlunoAtendidoDTO.builder()
+                    .alunoId(alunoId)
+                    .id(alunoId)
+                    .nome(nome)
+                    .fotoUrl(fotoUrl)
+                    .email(email)
+                    .cidade(cidade)
+                    .estado(estado)
+                    .curso(curso)
+                    .instituicao(instituicao)
+                    .totalAulasConcluidas(totalAulas)
+                    .totalAulas(totalAulas)
+                    .horasAcumuladas(horas)
+                    .horasTotais(horas)
+                    .dataUltimaAula(dataUltimaAula)
+                    .ultimaAulaData(dataUltimaAula)
+                    .disciplinasCursadas(disciplinas)
+                    .disciplinas(disciplinas)
+                    .agendamentoIdMaisRecente(agendamentoIdMaisRecente)
+                    .conversaId(conversaId)
+                    .statusMentoria("ATIVO")
+                    .formatoPreferido(formatoPreferido)
+                    .build();
+
+            resultado.add(dto);
+        }
+
+        return resultado;
     }
 }

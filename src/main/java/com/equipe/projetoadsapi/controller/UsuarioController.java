@@ -287,4 +287,30 @@ public class UsuarioController {
                 "Área de atendimento e localização atualizadas com sucesso"
         ));
     }
+
+    @Operation(summary = "Alunos atendidos pelo professor por ID (BACK-019)", 
+               description = "Retorna o histórico agregado de alunos atendidos em mentorias concluídas.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('PROFESSOR') or hasRole('ADMIN')")
+    @GetMapping("/professores/{id}/alunos")
+    public ResponseEntity<ApiResponse<List<AlunoAtendidoDTO>>> listarAlunosPorId(@PathVariable Long id) {
+        ownershipService.validarAcessoDocente(id);
+        List<AlunoAtendidoDTO> alunos = service.listarAlunosAtendidosDoProfessor(id);
+        return ResponseEntity.ok(ApiResponse.ok(alunos, "Alunos atendidos recuperados com sucesso"));
+    }
+
+    @Operation(summary = "Atalho: Meus alunos atendidos (BACK-019)", 
+               description = "Retorna os alunos atendidos pelo docente logado.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('PROFESSOR') or hasRole('ADMIN')")
+    @GetMapping("/professores/meus-alunos")
+    public ResponseEntity<ApiResponse<List<AlunoAtendidoDTO>>> listarMeusAlunos() {
+        Long professorId = com.equipe.projetoadsapi.security.SecurityUtils.getUsuarioAutenticadoId();
+        if (professorId == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Usuário não autenticado no contexto de segurança.");
+        }
+        ownershipService.validarAcessoDocente(professorId);
+        List<AlunoAtendidoDTO> alunos = service.listarAlunosAtendidosDoProfessor(professorId);
+        return ResponseEntity.ok(ApiResponse.ok(alunos, "Alunos atendidos do docente autenticado recuperados com sucesso"));
+    }
 }

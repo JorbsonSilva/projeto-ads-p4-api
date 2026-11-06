@@ -44,5 +44,6 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
 
     List<Agendamento> findByProfessorId(Long professorId);
     List<Agendamento> findByProfessorIdAndStatus(Long professorId, StatusAgendamento status);
+    List<Agendamento> findByProfessorIdAndStatusOrderByDataDescHoraDesc(Long professorId, StatusAgendamento status);
     Long countByProfessorIdAndStatus(Long professorId, StatusAgendamento status);
 }

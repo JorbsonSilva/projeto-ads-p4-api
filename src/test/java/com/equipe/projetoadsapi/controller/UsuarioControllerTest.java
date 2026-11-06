@@ -4,6 +4,7 @@ import com.equipe.projetoadsapi.model.*;
 import com.equipe.projetoadsapi.repository.AptidaoRepository;
 import com.equipe.projetoadsapi.repository.DisponibilidadeRepository;
 import com.equipe.projetoadsapi.repository.InteresseRepository;
+import com.equipe.projetoadsapi.dto.AlunoAtendidoDTO;
 import com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO;
 import com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO;
 import com.equipe.projetoadsapi.security.CustomUserDetailsService;
@@ -287,5 +288,50 @@ public class UsuarioControllerTest {
 
         verify(ownershipService, times(1)).validarAcessoDocente(99L);
         verify(usuarioService, never()).atualizarLocalizacaoProfessor(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("[BACK-019] Deve listar alunos atendidos pelo professor via rota de compatibilidade de usuários")
+    void deveListarAlunosAtendidosDoProfessorComSucesso() throws Exception {
+        Long professorId = 1L;
+        AlunoAtendidoDTO dto = AlunoAtendidoDTO.builder()
+                .alunoId(101L)
+                .id(101L)
+                .nome("Mariana Costa")
+                .fotoUrl("https://orienta.com/mariana.jpg")
+                .email("mariana.costa@academico.br")
+                .cidade("Campina Grande")
+                .estado("PB")
+                .curso("Engenharia de Software")
+                .instituicao("UFCG")
+                .totalAulasConcluidas(3)
+                .totalAulas(3)
+                .horasAcumuladas(4.5)
+                .horasTotais(4.5)
+                .dataUltimaAula("2026-11-04")
+                .ultimaAulaData("2026-11-04")
+                .disciplinasCursadas(List.of("Cálculo I", "Álgebra Linear"))
+                .disciplinas(List.of("Cálculo I", "Álgebra Linear"))
+                .agendamentoIdMaisRecente(500L)
+                .conversaId(77L)
+                .statusMentoria("ATIVO")
+                .formatoPreferido("PRESENCIAL")
+                .build();
+
+        doNothing().when(ownershipService).validarAcessoDocente(professorId);
+        when(usuarioService.listarAlunosAtendidosDoProfessor(professorId)).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/usuarios/professores/{id}/alunos", professorId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.dados[0].alunoId").value(101))
+                .andExpect(jsonPath("$.dados[0].nome").value("Mariana Costa"))
+                .andExpect(jsonPath("$.dados[0].totalAulasConcluidas").value(3))
+                .andExpect(jsonPath("$.dados[0].horasAcumuladas").value(4.5))
+                .andExpect(jsonPath("$.dados[0].conversaId").value(77));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(professorId);
+        verify(usuarioService, times(1)).listarAlunosAtendidosDoProfessor(professorId);
     }
 }
