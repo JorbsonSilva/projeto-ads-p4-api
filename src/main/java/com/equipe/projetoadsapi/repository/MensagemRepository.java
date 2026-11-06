@@ -9,10 +9,13 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MensagemRepository extends JpaRepository<Mensagem, Long> {
     List<Mensagem> findByConversaIdOrderByEnviadaEmAsc(Long conversaId);
+
+    Optional<Mensagem> findFirstByConversaIdOrderByEnviadaEmDesc(Long conversaId);
 
     @Modifying
     @Query("UPDATE Mensagem m SET m.lida = true, m.lidaEm = :agora WHERE m.conversa.id = :conversaId AND m.remetente.id != :usuarioId AND m.lida = false")

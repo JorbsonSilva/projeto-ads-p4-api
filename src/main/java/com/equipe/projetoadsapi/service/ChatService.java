@@ -38,6 +38,42 @@ public class ChatService {
     @Autowired
     private NotificacaoService notificacaoService;
 
+    /**
+     * Retorna a lista unificada de conversas ativas do usuário (aluno ou professor),
+     * com dados do interlocutor, última mensagem e contador de mensagens não lidas.
+     * As conversas são ordenadas pela data da última mensagem em ordem decrescente.
+     * Rastreabilidade: Fase 7 - Bloco K (BACK-013)
+     */
+    @Transactional(readOnly = true)
+    public List<ConversaDTO> listarConversas(Long usuarioId) {
+        if (usuarioId == null) {
+            throw new IllegalArgumentException("O ID do usuário é obrigatório.");
+        }
+        if (!usuarioRepository.existsById(usuarioId)) {
+            throw new RecursoNaoEncontradoException("Usuário não encontrado: " + usuarioId);
+        }
+
+        List<Conversa> conversas = conversaRepository.findByUsuarioParticipante(usuarioId);
+
+        List<ConversaDTO> dtos = conversas.stream().map(conversa -> {
+            Mensagem ultima = mensagemRepository.findFirstByConversaIdOrderByEnviadaEmDesc(conversa.getId()).orElse(null);
+            long naoLidas = mensagemRepository.countByConversaIdAndRemetenteIdNotAndLidaFalse(conversa.getId(), usuarioId);
+            return ConversaDTO.fromEntity(conversa, usuarioId, naoLidas, ultima);
+        }).collect(Collectors.toList());
+
+        // Ordenar conversas ativas por data da última mensagem (decrescente)
+        dtos.sort((c1, c2) -> {
+            Instant d1 = c1.getDataHoraUltimaMensagem() != null ? c1.getDataHoraUltimaMensagem() : c1.getAtualizadaEm();
+            Instant d2 = c2.getDataHoraUltimaMensagem() != null ? c2.getDataHoraUltimaMensagem() : c2.getAtualizadaEm();
+            if (d1 == null && d2 == null) return 0;
+            if (d1 == null) return 1;
+            if (d2 == null) return -1;
+            return d2.compareTo(d1);
+        });
+
+        return dtos;
+    }
+
     @Transactional
     public ConversaDTO obterOuCriarConversa(Long agendamentoId, Long usuarioId) {
         Agendamento agendamento = agendamentoRepository.findById(agendamentoId)
@@ -54,8 +90,9 @@ public class ChatService {
                     return conversaRepository.save(nova);
                 });
 
+        Mensagem ultima = mensagemRepository.findFirstByConversaIdOrderByEnviadaEmDesc(conversa.getId()).orElse(null);
         long naoLidas = mensagemRepository.countByConversaIdAndRemetenteIdNotAndLidaFalse(conversa.getId(), usuarioId);
-        return ConversaDTO.fromEntity(conversa, naoLidas);
+        return ConversaDTO.fromEntity(conversa, usuarioId, naoLidas, ultima);
     }
 
     @Transactional
