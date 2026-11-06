@@ -325,6 +325,120 @@ public class FinanceiroService {
     }
 
     /**
+     * Registra uma nova solicitação de saque pelo professor, aplicando todas as regras de negócio:
+     * - Saldo mínimo de R$ 10,00
+     * - Saldo disponível suficiente
+     * - Bloqueio de solicitações concomitantes em andamento (PENDENTE / PROCESSANDO)
+     * - Validação do formato da chave PIX de acordo com a modalidade
+     * - Geração de protocolo auditável SAQ-YYYY-XXXXX
+     * - Lançamento contábil de débito imutável no livro-razão
+     */
+    @Transactional
+    public SaqueResponseDTO solicitarSaque(Long professorId, com.equipe.projetoadsapi.dto.SaqueRequestDTO dto) {
+        if (dto == null) {
+            throw new RegraNegocioException("Dados da solicitação de saque não informados.");
+        }
+
+        Usuario professor = usuarioRepository.findById(professorId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Professor não encontrado: " + professorId));
+
+        // 1. Validação de perfil docente (RN-001)
+        if (professor.getPapel() != null && !professor.getPapel().name().contains("PROFESSOR") && !professor.getPapel().name().contains("ADMIN")) {
+            throw new RegraNegocioException("Apenas usuários com perfil docente podem solicitar saques.");
+        }
+
+        // 2. Validação de valor mínimo
+        if (dto.getValor() == null || dto.getValor().compareTo(VALOR_MINIMO_SAQUE) < 0) {
+            throw new RegraNegocioException(String.format("O valor mínimo para solicitação de saque é de R$ %s.", VALOR_MINIMO_SAQUE.setScale(2)));
+        }
+
+        // 3. Validação de saldo disponível
+        BigDecimal saldoDisponivel = calcularSaldoDisponivel(professorId);
+        if (dto.getValor().compareTo(saldoDisponivel) > 0) {
+            throw new RegraNegocioException(String.format(
+                    "Saldo disponível insuficiente para realizar o saque solicitado. Saldo disponível: R$ %s, valor solicitado: R$ %s.",
+                    saldoDisponivel.setScale(2), dto.getValor().setScale(2)));
+        }
+
+        // 4. Bloqueio de solicitações simultâneas em andamento
+        boolean temSaqueEmAndamento = saqueRepository.existsByProfessorIdAndStatusSaqueIn(
+                professorId, Arrays.asList(StatusSaque.PENDENTE, StatusSaque.PROCESSANDO));
+        if (temSaqueEmAndamento) {
+            throw new RegraNegocioException("Você já possui uma solicitação de saque em processamento. Aguarde a liquidação antes de solicitar um novo saque.");
+        }
+
+        // 5. Validação de formato da chave PIX
+        validarChavePix(dto.getTipoChavePix(), dto.getChavePix());
+
+        // 6. Persistência do Saque com protocolo regulamentar
+        Saque novoSaque = Saque.builder()
+                .professor(professor)
+                .valor(dto.getValor())
+                .taxaAplicada(BigDecimal.ZERO)
+                .valorLiquido(dto.getValor())
+                .tipoChavePix(dto.getTipoChavePix())
+                .chavePix(dto.getChavePix().trim())
+                .dadosBancarios(dto.getDadosBancarios())
+                .observacoes(dto.getObservacoes())
+                .statusSaque(StatusSaque.PENDENTE)
+                .dataSolicitacao(Instant.now())
+                .build();
+        novoSaque.prePersist();
+
+        Saque salvo = saqueRepository.save(novoSaque);
+
+        // 7. Registro do débito contábil no livro-razão
+        registrarTransacaoSolicitacaoSaque(salvo);
+
+        log.info("Saque protocolado com sucesso: {} para professor #{} no valor de R$ {}",
+                salvo.getProtocoloSaque(), professorId, salvo.getValor());
+
+        return SaqueResponseDTO.fromEntity(salvo);
+    }
+
+    /**
+     * Valida o formato da chave PIX informada conforme a modalidade selecionada.
+     */
+    public void validarChavePix(TipoChavePix tipo, String chave) {
+        if (tipo == null) {
+            throw new RegraNegocioException("O tipo de chave PIX é obrigatório (CPF, EMAIL, TELEFONE ou EVP).");
+        }
+        if (chave == null || chave.trim().isEmpty()) {
+            throw new RegraNegocioException("A chave PIX é obrigatória.");
+        }
+
+        String c = chave.trim();
+
+        switch (tipo) {
+            case CPF:
+                String digitosCpf = c.replaceAll("\\D", "");
+                if (digitosCpf.length() != 11) {
+                    throw new RegraNegocioException("Chave PIX do tipo CPF deve conter exatamente 11 dígitos numéricos.");
+                }
+                break;
+            case EMAIL:
+                if (!c.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+                    throw new RegraNegocioException("Chave PIX do tipo E-mail com formato inválido.");
+                }
+                break;
+            case TELEFONE:
+                String digitosTel = c.replaceAll("\\D", "");
+                if (digitosTel.length() < 10 || digitosTel.length() > 11) {
+                    throw new RegraNegocioException("Chave PIX do tipo Telefone deve conter DDD + número (10 ou 11 dígitos).");
+                }
+                break;
+            case EVP:
+                if (!c.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+                        && !c.matches("^[0-9a-fA-F]{32}$")) {
+                    throw new RegraNegocioException("Chave PIX do tipo EVP/Aleatória deve ser um UUID válido (32 ou 36 caracteres).");
+                }
+                break;
+            default:
+                throw new RegraNegocioException("Tipo de chave PIX não suportado: " + tipo);
+        }
+    }
+
+    /**
      * Registra lançamento de reembolso ao aluno em caso de cancelamento elegível.
      */
     @Transactional

@@ -1,7 +1,10 @@
 package com.equipe.projetoadsapi.service;
 
 import com.equipe.projetoadsapi.dto.ResumoFinanceiroDTO;
+import com.equipe.projetoadsapi.dto.SaqueRequestDTO;
+import com.equipe.projetoadsapi.dto.SaqueResponseDTO;
 import com.equipe.projetoadsapi.dto.TransacaoFinanceiraDTO;
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.model.Agendamento;
 import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Saque;
@@ -310,5 +313,162 @@ public class FinanceiroServiceTest {
         assertEquals(TipoTransacao.RETENCAO_TAXA_INSTITUICAO, extrato.get(0).getTipoTransacao());
         assertEquals(1L, extrato.get(1).getId());
         assertEquals(TipoTransacao.CREDITO_AULA, extrato.get(1).getTipoTransacao());
+    }
+
+    // =========================================================================
+    // TESTES DA TAREFA [BACK-012]: SOLICITAÇÃO DE SAQUE E VALIDAÇÕES PIX/TED
+    // =========================================================================
+
+    @Test
+    @DisplayName("[BACK-012] Deve solicitar saque com sucesso e registrar débito contábil imutável")
+    void deveSolicitarSaqueComSucesso() {
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(professor));
+        // Saldo disponível: R$ 225,00
+        when(agendamentoRepository.findByProfessorIdAndStatus(10L, StatusAgendamento.REALIZADA))
+                .thenReturn(Arrays.asList(aulaRealizada1, aulaRealizada2));
+        when(saqueRepository.findByProfessorIdOrderByDataSolicitacaoDesc(10L))
+                .thenReturn(Collections.emptyList());
+        when(saqueRepository.existsByProfessorIdAndStatusSaqueIn(eq(10L), any()))
+                .thenReturn(false);
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("100.00"))
+                .tipoChavePix(TipoChavePix.EMAIL)
+                .chavePix("carlos@orienta.com.br")
+                .observacoes("Saque prioritário")
+                .build();
+
+        when(saqueRepository.save(any(Saque.class))).thenAnswer(invocation -> {
+            Saque s = invocation.getArgument(0);
+            s.setId(500L);
+            return s;
+        });
+
+        SaqueResponseDTO response = financeiroService.solicitarSaque(10L, request);
+
+        assertNotNull(response);
+        assertEquals(500L, response.getId());
+        assertEquals(10L, response.getProfessorId());
+        assertEquals(new BigDecimal("100.00"), response.getValor());
+        assertEquals(StatusSaque.PENDENTE, response.getStatusSaque());
+        assertEquals(TipoChavePix.EMAIL, response.getTipoChavePix());
+        assertEquals("carlos@orienta.com.br", response.getChavePix());
+        assertNotNull(response.getProtocoloSaque());
+        assertTrue(response.getProtocoloSaque().startsWith("SAQ-"));
+
+        // Deve persistir o saque
+        verify(saqueRepository, times(1)).save(any(Saque.class));
+
+        // Deve registrar lançamento contábil de débito (SAQUE_DEBITO)
+        ArgumentCaptor<TransacaoFinanceira> transacaoCaptor = ArgumentCaptor.forClass(TransacaoFinanceira.class);
+        verify(transacaoRepository, times(1)).save(transacaoCaptor.capture());
+        TransacaoFinanceira debito = transacaoCaptor.getValue();
+        assertEquals(TipoTransacao.SAQUE_DEBITO, debito.getTipoTransacao());
+        assertEquals(new BigDecimal("100.00"), debito.getValor());
+        assertEquals(10L, debito.getUsuario().getId());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve rejeitar solicitação de saque com valor abaixo de R$ 10,00")
+    void deveRejeitarSaqueAbaixoDoMinimo() {
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(professor));
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("9.99"))
+                .tipoChavePix(TipoChavePix.CPF)
+                .chavePix("12345678900")
+                .build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class,
+                () -> financeiroService.solicitarSaque(10L, request));
+
+        assertTrue(ex.getMessage().contains("mínimo para solicitação de saque é de R$ 10.00"));
+        verify(saqueRepository, never()).save(any());
+        verify(transacaoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve rejeitar solicitação de saque quando saldo disponível for insuficiente")
+    void deveRejeitarSaqueComSaldoInsuficiente() {
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(professor));
+        // Apenas Aula 1 realizada: Líquido R$ 90,00
+        when(agendamentoRepository.findByProfessorIdAndStatus(10L, StatusAgendamento.REALIZADA))
+                .thenReturn(Collections.singletonList(aulaRealizada1));
+        when(saqueRepository.findByProfessorIdOrderByDataSolicitacaoDesc(10L))
+                .thenReturn(Collections.emptyList());
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("150.00")) // Saldo é 90, pede 150
+                .tipoChavePix(TipoChavePix.CPF)
+                .chavePix("12345678900")
+                .build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class,
+                () -> financeiroService.solicitarSaque(10L, request));
+
+        assertTrue(ex.getMessage().contains("Saldo disponível insuficiente"));
+        verify(saqueRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve bloquear nova solicitação quando houver saque em processamento")
+    void deveBloquearSaquesConcomitantes() {
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(professor));
+        when(agendamentoRepository.findByProfessorIdAndStatus(10L, StatusAgendamento.REALIZADA))
+                .thenReturn(Arrays.asList(aulaRealizada1, aulaRealizada2)); // R$ 225
+        when(saqueRepository.findByProfessorIdOrderByDataSolicitacaoDesc(10L))
+                .thenReturn(Collections.emptyList());
+        when(saqueRepository.existsByProfessorIdAndStatusSaqueIn(eq(10L), any()))
+                .thenReturn(true); // Já tem saque em processamento
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("50.00"))
+                .tipoChavePix(TipoChavePix.CPF)
+                .chavePix("12345678900")
+                .build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class,
+                () -> financeiroService.solicitarSaque(10L, request));
+
+        assertTrue(ex.getMessage().contains("já possui uma solicitação de saque em processamento"));
+        verify(saqueRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve rejeitar solicitação de saque para perfil que não seja professor")
+    void deveRejeitarSaqueParaNaoDocente() {
+        when(usuarioRepository.findById(20L)).thenReturn(Optional.of(aluno));
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("50.00"))
+                .tipoChavePix(TipoChavePix.EMAIL)
+                .chavePix("lucas@orienta.com.br")
+                .build();
+
+        RegraNegocioException ex = assertThrows(RegraNegocioException.class,
+                () -> financeiroService.solicitarSaque(20L, request));
+
+        assertTrue(ex.getMessage().contains("perfil docente"));
+        verify(saqueRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve validar chave PIX conforme tipo: CPF, EMAIL, TELEFONE e EVP")
+    void deveValidarChavesPixPorTipo() {
+        // Válidas
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.CPF, "123.456.789-00"));
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.CPF, "12345678900"));
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.EMAIL, "professor@orienta.com.br"));
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.TELEFONE, "83988887777"));
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.TELEFONE, "(83) 98888-7777"));
+        assertDoesNotThrow(() -> financeiroService.validarChavePix(TipoChavePix.EVP, "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"));
+
+        // Inválidas
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(TipoChavePix.CPF, "12345"));
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(TipoChavePix.EMAIL, "invalido@"));
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(TipoChavePix.TELEFONE, "123"));
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(TipoChavePix.EVP, "chave-invalida-curta"));
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(null, "qualquer"));
+        assertThrows(RegraNegocioException.class, () -> financeiroService.validarChavePix(TipoChavePix.CPF, "   "));
     }
 }

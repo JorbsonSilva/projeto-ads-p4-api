@@ -1,7 +1,11 @@
 package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.ResumoFinanceiroDTO;
+import com.equipe.projetoadsapi.dto.SaqueRequestDTO;
+import com.equipe.projetoadsapi.dto.SaqueResponseDTO;
 import com.equipe.projetoadsapi.dto.TransacaoFinanceiraDTO;
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
+import com.equipe.projetoadsapi.model.enums.StatusSaque;
 import com.equipe.projetoadsapi.model.enums.TipoChavePix;
 import com.equipe.projetoadsapi.model.enums.TipoTransacao;
 import com.equipe.projetoadsapi.security.CustomUserDetailsService;
@@ -16,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,6 +30,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -156,5 +162,98 @@ public class FinanceiroControllerTest {
 
         verify(ownershipService, times(1)).validarAcessoDocente(99L);
         verify(financeiroService, never()).obterExtrato(any());
+    }
+
+    // =========================================================================
+    // TESTES DA TAREFA [BACK-012]: ENDPOINT DE SOLICITAÇÃO DE SAQUE DOCENTE
+    // =========================================================================
+
+    @Test
+    @DisplayName("[BACK-012] Deve registrar solicitação de saque com sucesso (HTTP 201 Created)")
+    void deveRegistrarSolicitacaoDeSaqueComSucesso() throws Exception {
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("150.00"))
+                .tipoChavePix(TipoChavePix.EMAIL)
+                .chavePix("carlos@orienta.com.br")
+                .observacoes("Solicitação mensal")
+                .build();
+
+        SaqueResponseDTO response = SaqueResponseDTO.builder()
+                .id(101L)
+                .professorId(10L)
+                .nomeProfessor("Prof. Carlos")
+                .valor(new BigDecimal("150.00"))
+                .taxaAplicada(BigDecimal.ZERO)
+                .valorLiquido(new BigDecimal("150.00"))
+                .statusSaque(StatusSaque.PENDENTE)
+                .tipoChavePix(TipoChavePix.EMAIL)
+                .chavePix("carlos@orienta.com.br")
+                .protocoloSaque("SAQ-2026-00101")
+                .dataSolicitacao(Instant.now())
+                .observacoes("Solicitação mensal")
+                .build();
+
+        when(financeiroService.solicitarSaque(eq(10L), any(SaqueRequestDTO.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/professores/10/financeiro/saques")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(101))
+                .andExpect(jsonPath("$.data.professorId").value(10))
+                .andExpect(jsonPath("$.data.valor").value(150.00))
+                .andExpect(jsonPath("$.data.statusSaque").value("PENDENTE"))
+                .andExpect(jsonPath("$.data.protocoloSaque").value("SAQ-2026-00101"))
+                .andExpect(jsonPath("$.data.chavePix").value("carlos@orienta.com.br"))
+                .andExpect(jsonPath("$.message").value("Solicitação de saque enviada com sucesso"));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(10L);
+        verify(financeiroService, times(1)).solicitarSaque(eq(10L), any(SaqueRequestDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve bloquear solicitação de saque com 403 Forbidden em caso de ID Spoofing")
+    void deveBloquearSolicitacaoDeSaquePorIdSpoofing() throws Exception {
+        doThrow(new AccessDeniedException("Acesso Proibido: Você não tem permissão para movimentar a conta deste docente."))
+                .when(ownershipService).validarAcessoDocente(99L);
+
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("100.00"))
+                .tipoChavePix(TipoChavePix.CPF)
+                .chavePix("12345678900")
+                .build();
+
+        mockMvc.perform(post("/api/v1/professores/99/financeiro/saques")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Acesso negado: Acesso Proibido: Você não tem permissão para movimentar a conta deste docente."));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(99L);
+        verify(financeiroService, never()).solicitarSaque(any(), any());
+    }
+
+    @Test
+    @DisplayName("[BACK-012] Deve retornar 422 Unprocessable Entity quando regra de negócio for violada (ex: saldo insuficiente)")
+    void deveRetornar422QuandoSaldoInsuficiente() throws Exception {
+        SaqueRequestDTO request = SaqueRequestDTO.builder()
+                .valor(new BigDecimal("500.00"))
+                .tipoChavePix(TipoChavePix.EMAIL)
+                .chavePix("carlos@orienta.com.br")
+                .build();
+
+        when(financeiroService.solicitarSaque(eq(10L), any(SaqueRequestDTO.class)))
+                .thenThrow(new RegraNegocioException("Saldo disponível insuficiente para realizar o saque solicitado."));
+
+        mockMvc.perform(post("/api/v1/professores/10/financeiro/saques")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Saldo disponível insuficiente para realizar o saque solicitado."));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(10L);
     }
 }
