@@ -134,8 +134,9 @@ public class SuporteController {
     public ResponseEntity<ApiResponse<DenunciaDTO>> moderarDenuncia(
             @PathVariable Long id,
             @RequestParam(required = false) Long moderadorId,
+            @RequestParam(required = false) Long adminId,
             @Valid @RequestBody ModerarDenunciaDTO dto) {
-        Long idModerador = (moderadorId != null) ? moderadorId : SecurityUtils.getUsuarioAutenticadoId();
+        Long idModerador = (moderadorId != null) ? moderadorId : ((adminId != null) ? adminId : SecurityUtils.getUsuarioAutenticadoId());
         DenunciaDTO denuncia = suporteService.moderarDenuncia(id, idModerador, dto);
         return ResponseEntity.ok(ApiResponse.ok(denuncia, "Denúncia moderada com sucesso! Status: " + denuncia.getStatus()));
     }
@@ -148,7 +149,7 @@ public class SuporteController {
             throw new AccessDeniedException("Usuário não autenticado.");
         }
 
-        if (authenticatedId != null && !authenticatedId.equals(idAlvo)) {
+        if (usuarioId != null) {
             ownershipService.validarPropriedadeUsuario(idAlvo);
         }
 

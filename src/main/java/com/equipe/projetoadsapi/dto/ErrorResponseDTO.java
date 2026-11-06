@@ -17,8 +17,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ErrorResponseDTO {
+    @Builder.Default
+    private boolean success = false;
     private Instant timestamp;
     private int status;
     private String error;

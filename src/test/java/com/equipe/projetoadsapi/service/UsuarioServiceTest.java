@@ -135,7 +135,7 @@ public class UsuarioServiceTest {
     @Test
     @DisplayName("Deve delegar o cálculo esférico de Haversine para LocalizacaoService sem quebrar os métodos legados")
     void devePreservarCalculoHaversine() {
-        when(localizacaoService.normalizarRaio(null)).thenReturn(50);
+        when(localizacaoService.normalizarRaio(any())).thenReturn(20);
         when(repository.findAll()).thenReturn(java.util.Collections.emptyList());
 
         var resultado = usuarioService.buscarProfessoresAvancado(

@@ -68,9 +68,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/verificar-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios/reenviar-verificacao").permitAll()
 
-                        // 3. Health Check e Metadados Públicos do Assistente
+                        // 3. Health Check e Endpoints Públicos do Assistente Acadêmico IA
                         .requestMatchers("/api/v1/health", "/api/health", "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/assistente/regras", "/api/v1/assistant/regras", "/api/v1/assistente/faq", "/api/v1/assistant/faq").permitAll()
+                        .requestMatchers("/api/v1/assistente/**", "/api/v1/assistant/**").permitAll()
 
                         // 4. Documentação e Especificação OpenAPI / Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

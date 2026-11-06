@@ -30,7 +30,7 @@ import java.util.Map;
 @RequestMapping({"/api/v1/assistente", "/api/v1/assistant", "/api/assistente", "/api/assistant"})
 @Tag(name = "Assistente Acadêmico IA (v1)", description = "Triagem pedagógica determinística por regras e chips com contingência offline")
 @SecurityRequirement(name = "bearerAuth")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*")
 public class AssistantController {
 
     private final DeterministicAssistantService assistantService;

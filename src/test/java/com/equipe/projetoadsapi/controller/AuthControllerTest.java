@@ -141,7 +141,7 @@ public class AuthControllerTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest()); // Tratado pelo GlobalExceptionHandler
+                .andExpect(status().isUnprocessableEntity()); // Tratado pelo GlobalExceptionHandler (RegraNegocioException -> 422)
     }
 
     // =========================================================================
@@ -159,7 +159,7 @@ public class AuthControllerTest {
                 .email("beatriz@orienta.edu.br")
                 .cpf("12345678900")
                 .dataNascimento("2002-08-15")
-                .senha("senhaForte123")
+                .senha("SenhaForte@123")
                 .tipo("ALUNO")
                 .build();
 

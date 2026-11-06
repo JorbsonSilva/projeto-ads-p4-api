@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 @Service("resourceOwnershipService")
 public class ResourceOwnershipService {
 
-    private static final Logger log = LoggerFactory.getLogger(ResourceOwnershipService.java);
+    private static final Logger log = LoggerFactory.getLogger(ResourceOwnershipService.class);
 
     /**
      * Valida que o usuário autenticado no SecurityContext é o proprietário do ID informado.

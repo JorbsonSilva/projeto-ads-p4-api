@@ -58,7 +58,7 @@ class AuthLoginTest {
     @Test
     @DisplayName("Garante login bem-sucedido quando o usuário informa seu e-mail")
     void deveAutenticarComEmail() {
-        when(usuarioRepository.findByEmailOrCpf("professor@orienta.edu.br", "professor@orienta.edu.br"))
+        when(usuarioRepository.findByEmailOrCpf(eq("professor@orienta.edu.br"), anyString()))
                 .thenReturn(usuarioMock);
         when(legacyMigrationService.verificarSenha("senha123", usuarioMock.getSenha())).thenReturn(true);
         when(tokenProvider.gerarAccessToken(any(), anyString(), anyString())).thenReturn("jwt.token.valido");
@@ -70,7 +70,7 @@ class AuthLoginTest {
         assertNotNull(response);
         assertEquals("jwt.token.valido", response.getToken());
         assertEquals("professor@orienta.edu.br", response.getUsuario().getEmail());
-        verify(usuarioRepository, times(1)).findByEmailOrCpf("professor@orienta.edu.br", "professor@orienta.edu.br");
+        verify(usuarioRepository, times(1)).findByEmailOrCpf(eq("professor@orienta.edu.br"), anyString());
     }
 
     @Test

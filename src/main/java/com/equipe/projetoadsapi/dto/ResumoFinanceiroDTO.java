@@ -51,6 +51,9 @@ public class ResumoFinanceiroDTO {
     private String motivoBloqueio;
 
     @Builder.Default
+    private Double taxaPlataformaPercentual = 10.0;
+
+    @Builder.Default
     private List<TransacaoFinanceiraDTO> transacoesRecentes = new ArrayList<>();
 
     @Builder.Default

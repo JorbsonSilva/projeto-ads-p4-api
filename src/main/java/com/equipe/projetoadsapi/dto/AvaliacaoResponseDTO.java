@@ -35,6 +35,14 @@ public class AvaliacaoResponseDTO {
     private Integer novoTotalAvaliacoes;
     private Instant criadaEm;
 
+    public String getNomeAvaliador() {
+        return avaliadorNome;
+    }
+
+    public String getNomeAvaliado() {
+        return avaliadoNome;
+    }
+
     public static AvaliacaoResponseDTO fromEntity(Avaliacao a) {
         if (a == null) return null;
 

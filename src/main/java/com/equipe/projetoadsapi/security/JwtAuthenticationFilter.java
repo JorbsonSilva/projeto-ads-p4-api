@@ -22,13 +22,13 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
+    @Autowired(required = false)
     private JwtTokenProvider tokenProvider;
 
-    @Autowired
+    @Autowired(required = false)
     private TokenBlacklistService blacklistService;
 
-    @Autowired
+    @Autowired(required = false)
     private CustomUserDetailsService userDetailsService;
 
     @Override
@@ -38,7 +38,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = extrairToken(request);
 
-            if (StringUtils.hasText(token) && !blacklistService.isRevogado(token) && tokenProvider.validarToken(token)) {
+            if (StringUtils.hasText(token) 
+                    && tokenProvider != null 
+                    && (blacklistService == null || !blacklistService.isRevogado(token)) 
+                    && tokenProvider.validarToken(token)
+                    && userDetailsService != null) {
                 String email = tokenProvider.extrairEmail(token);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 

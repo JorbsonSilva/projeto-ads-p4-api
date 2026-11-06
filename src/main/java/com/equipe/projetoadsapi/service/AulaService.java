@@ -248,22 +248,22 @@ public class AulaService {
 
         // 2. Bloqueio de auto-avaliação (RN-001): um professor não pode avaliar a si mesmo
         if (agendamento.getProfessor().getId().equals(avaliadorId)) {
-            throw new RegraNegocioException("Auto-avaliação bloqueada: o professor não pode avaliar a sua própria mentoria.");
+            throw new RegraNegocioException("Auto-avaliação bloqueada: O professor não pode avaliar a si mesmo.");
         }
 
         // Validação de vínculo: apenas o aluno participante da aula pode avaliar o docente
         if (!agendamento.getAluno().getId().equals(avaliadorId)) {
-            throw new RegraNegocioException("Apenas o aluno vinculado a esta mentoria pode enviar a avaliação do docente.");
+            throw new RegraNegocioException("Apenas o aluno vinculado a esta aula pode enviar avaliação para o professor.");
         }
 
         Usuario avaliado = agendamento.getProfessor();
         if (avaliadorId.equals(avaliado.getId())) {
-            throw new RegraNegocioException("Não é permitido avaliar a si mesmo.");
+            throw new RegraNegocioException("O professor não pode avaliar a si mesmo.");
         }
 
         // 3. Bloqueio de duplicidade: cada participante só pode avaliar a mentoria uma única vez
         if (avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(agendamentoId, avaliadorId)) {
-            throw new RegraNegocioException("Você já enviou sua avaliação para esta aula.");
+            throw new RegraNegocioException("Você já enviou uma avaliação para esta mentoria.");
         }
 
         // 4. Sub-critérios pedagógicos e notas de 1 a 5 estrelas

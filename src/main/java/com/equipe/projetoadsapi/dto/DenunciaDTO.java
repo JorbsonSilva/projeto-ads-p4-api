@@ -66,11 +66,22 @@ public class DenunciaDTO {
     @Schema(description = "Data e hora em que a denúncia foi aberta")
     private Instant criadaEm;
 
+    @Schema(description = "Alias para data de criação")
+    private Instant criadoEm;
+
     @Schema(description = "Data e hora da decisão da moderação")
     private Instant analisadaEm;
 
     @Schema(description = "Data da última atualização do registro")
     private Instant dataAtualizacao;
+
+    public Instant getCriadoEm() {
+        return criadoEm != null ? criadoEm : criadaEm;
+    }
+
+    public Instant getCriadaEm() {
+        return criadaEm != null ? criadaEm : criadoEm;
+    }
 
     public static DenunciaDTO fromEntity(Denuncia d) {
         if (d == null) return null;

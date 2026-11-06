@@ -55,7 +55,7 @@ public class ChatController {
         }
 
         // Se passar usuarioId explícito diferente do logado, valida ownership (evita ID Spoofing)
-        if (authenticatedId != null && !authenticatedId.equals(idAlvo)) {
+        if (usuarioId != null) {
             ownershipService.validarPropriedadeUsuario(idAlvo);
         }
 
@@ -197,7 +197,7 @@ public class ChatController {
             throw new AccessDeniedException("Usuário não autenticado.");
         }
 
-        if (authenticatedId != null && !authenticatedId.equals(idAlvo)) {
+        if (usuarioId != null) {
             ownershipService.validarPropriedadeUsuario(idAlvo);
         }
 

@@ -51,6 +51,14 @@ public class TriageResponseDTO implements Serializable {
         this.nextStep = nextStep;
     }
 
+    public TriageStep getProximoPasso() {
+        return nextStep;
+    }
+
+    public void setProximoPasso(TriageStep proximoPasso) {
+        this.nextStep = proximoPasso;
+    }
+
     public List<QuickOptionDTO> getQuickOptions() {
         return quickOptions;
     }

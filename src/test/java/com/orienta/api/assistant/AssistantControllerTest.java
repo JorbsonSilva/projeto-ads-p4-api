@@ -27,7 +27,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.test.context.ContextConfiguration;
+
 @WebMvcTest(AssistantController.class)
+@ContextConfiguration(classes = com.equipe.projetoadsapi.ProjetoAdsP3ApiApplication.class)
 @AutoConfigureMockMvc(addFilters = false)
 @DisplayName("Testes Web Mock do AssistantController (Tarefa [BACK-018])")
 public class AssistantControllerTest {

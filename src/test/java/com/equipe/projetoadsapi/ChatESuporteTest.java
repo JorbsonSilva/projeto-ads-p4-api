@@ -78,7 +78,7 @@ public class ChatESuporteTest {
     void testBloqueioAcessoChatTerceiro() {
         when(agendamentoRepository.findById(100L)).thenReturn(Optional.of(agendamento));
 
-        RegraNegocioException ex = assertThrows(RegraNegocioException.class, () -> {
+        org.springframework.security.access.AccessDeniedException ex = assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> {
             chatService.obterOuCriarConversa(100L, 999L);
         });
 

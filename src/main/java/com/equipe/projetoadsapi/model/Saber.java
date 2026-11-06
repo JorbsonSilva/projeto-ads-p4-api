@@ -2,6 +2,7 @@ package com.equipe.projetoadsapi.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,6 +15,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "tb_saberes")
 @Data // Lombok: Gera getters, setters, toString, etc. automaticamente
+@Builder
 @NoArgsConstructor // Lombok: Cria o construtor vazio exigido pelo JPA
 @AllArgsConstructor // Lombok: Cria o construtor com todos os atributos
 public class Saber {

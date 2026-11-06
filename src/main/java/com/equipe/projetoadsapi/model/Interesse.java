@@ -34,4 +34,8 @@ public class Interesse {
     public String getNivel() {
         return null;
     }
+
+    public void setNivel(String nivel) {
+        // no-op para compatibilidade com DTO legado
+    }
 }

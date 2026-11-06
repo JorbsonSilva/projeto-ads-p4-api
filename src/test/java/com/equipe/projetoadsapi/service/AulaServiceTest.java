@@ -70,21 +70,21 @@ public class AulaServiceTest {
                 .id(1L)
                 .nome("Lucas Silveira")
                 .email("lucas@orienta.com.br")
-                .papel(PapelUsuario.ALUNO)
+                .papel(PapelUsuario.ROLE_ALUNO)
                 .build();
 
         professor = Usuario.builder()
                 .id(2L)
                 .nome("Prof. Ricardo Santos")
                 .email("ricardo@orienta.com.br")
-                .papel(PapelUsuario.PROFESSOR)
+                .papel(PapelUsuario.ROLE_PROFESSOR)
                 .build();
 
         terceiro = Usuario.builder()
                 .id(99L)
                 .nome("Usuário Intruso")
                 .email("intruso@orienta.com.br")
-                .papel(PapelUsuario.ALUNO)
+                .papel(PapelUsuario.ROLE_ALUNO)
                 .build();
 
         agendamentoConfirmado = Agendamento.builder()

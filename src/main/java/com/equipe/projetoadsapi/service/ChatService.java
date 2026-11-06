@@ -271,13 +271,11 @@ public class ChatService {
         }
 
         // 2. Identificar e validar o Remetente
-        Long remetenteId = dto.getRemetenteId();
-        if (remetenteId == null) {
-            remetenteId = SecurityUtils.getUsuarioAutenticadoId();
-        }
-        if (remetenteId == null) {
+        Long remetenteAuthId = dto.getRemetenteId() != null ? dto.getRemetenteId() : SecurityUtils.getUsuarioAutenticadoId();
+        if (remetenteAuthId == null) {
             throw new AccessDeniedException("Usuário remetente não autenticado.");
         }
+        final Long remetenteId = remetenteAuthId;
 
         validarParticipanteDaAula(agendamento, remetenteId);
 

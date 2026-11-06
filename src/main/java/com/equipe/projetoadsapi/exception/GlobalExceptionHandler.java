@@ -107,9 +107,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<com.equipe.projetoadsapi.dto.ApiResponse<Object>> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
 
-        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank())
+        String rawMsg = (ex.getMessage() != null && !ex.getMessage().isBlank())
                 ? ex.getMessage()
                 : "Acesso Proibido: Você não possui permissão para acessar ou alterar este recurso.";
+
+        String msg = "Acesso negado: " + rawMsg;
 
         log.warn("[SEGURANÇA - ACESSO NEGADO] Tentativa de acesso indevido na rota {}: {}", request.getRequestURI(), msg);
 

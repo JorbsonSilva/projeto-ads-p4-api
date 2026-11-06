@@ -55,4 +55,12 @@ public class SaqueResponseDTO {
                 .observacoes(saque.getObservacoes())
                 .build();
     }
+
+    public String getProtocolo() {
+        return protocoloSaque;
+    }
+
+    public StatusSaque getStatus() {
+        return statusSaque;
+    }
 }

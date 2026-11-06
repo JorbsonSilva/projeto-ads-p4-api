@@ -24,6 +24,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
 public class ApiResponse<T> {
 
     @Builder.Default
@@ -34,11 +35,39 @@ public class ApiResponse<T> {
     private T data;
 
     @Builder.Default
+    private Integer status = 200;
+
+    @Builder.Default
     private Instant timestamp = Instant.now();
+
+    public boolean isSucesso() {
+        return success;
+    }
+
+    public void setSucesso(boolean sucesso) {
+        this.success = sucesso;
+    }
+
+    public String getMensagem() {
+        return message;
+    }
+
+    public void setMensagem(String mensagem) {
+        this.message = mensagem;
+    }
+
+    public T getDados() {
+        return data;
+    }
+
+    public void setDados(T dados) {
+        this.data = dados;
+    }
 
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder()
                 .success(true)
+                .status(200)
                 .message("Operação realizada com sucesso")
                 .data(data)
                 .timestamp(Instant.now())
@@ -48,6 +77,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> ok(T data, String message) {
         return ApiResponse.<T>builder()
                 .success(true)
+                .status(200)
                 .message(message)
                 .data(data)
                 .timestamp(Instant.now())
@@ -57,6 +87,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> created(T data, String message) {
         return ApiResponse.<T>builder()
                 .success(true)
+                .status(201)
                 .message(message)
                 .data(data)
                 .timestamp(Instant.now())
@@ -66,6 +97,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> error(String message) {
         return ApiResponse.<T>builder()
                 .success(false)
+                .status(400)
                 .message(message)
                 .timestamp(Instant.now())
                 .build();
@@ -74,6 +106,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> forbidden(String message) {
         return ApiResponse.<T>builder()
                 .success(false)
+                .status(403)
                 .message(message != null ? message : "Acesso Proibido: Você não possui permissão para acessar ou alterar este recurso.")
                 .timestamp(Instant.now())
                 .build();

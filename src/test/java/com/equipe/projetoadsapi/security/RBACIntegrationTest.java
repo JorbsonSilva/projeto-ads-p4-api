@@ -42,7 +42,7 @@ class RBACIntegrationTest {
         ownershipService = new ResourceOwnershipService();
         accessDeniedHandler = new CustomAccessDeniedHandler();
         exceptionHandler = new GlobalExceptionHandler();
-        objectMapper = new ObjectMapper();
+        objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
     @AfterEach
