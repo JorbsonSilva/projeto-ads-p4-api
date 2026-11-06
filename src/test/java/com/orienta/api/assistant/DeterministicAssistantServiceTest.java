@@ -1,5 +1,6 @@
 package com.orienta.api.assistant;
 
+import com.orienta.api.assistant.dto.PerguntaAssistenteDTO;
 import com.orienta.api.assistant.dto.TriageRequestDTO;
 import com.orienta.api.assistant.dto.TriageResponseDTO;
 import com.orienta.api.assistant.model.TriageStep;
@@ -12,7 +13,7 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Testes do Assistente Determinístico por Regras (Fase 9)")
+@DisplayName("Testes do Assistente Determinístico e Chips Pedagógicos (Tarefa [BACK-018])")
 class DeterministicAssistantServiceTest {
 
     private DeterministicAssistantService assistantService;
@@ -95,5 +96,96 @@ class DeterministicAssistantServiceTest {
         assertEquals(TriageStep.SUPPORT_HANDOFF, response.getNextStep());
         assertNotNull(response.getSupportTicketDraftProtocol());
         assertTrue(response.getSupportTicketDraftProtocol().startsWith("SUP-"));
+    }
+
+    // =========================================================================
+    // NOVOS TESTES DA TAREFA [BACK-018] — CHIPS PEDAGÓGICOS E PERGUNTAS LIVRES
+    // =========================================================================
+
+    @Test
+    @DisplayName("[BACK-018] Deve processar chip 'Explicar Exercício' com fórmula e passos metodológicos")
+    void deveProcessarChipExplicarExercicioComFormulaEPassos() {
+        PerguntaAssistenteDTO request = new PerguntaAssistenteDTO(
+                "Pode me ajudar a resolver uma integral por partes de Cálculo?",
+                "Cálculo I",
+                "EXPLICAR_EXERCICIO"
+        );
+
+        TriageResponseDTO response = assistantService.processarPergunta(request, 1001L);
+
+        assertNotNull(response);
+        assertTrue(response.isDeterministicRuleBased());
+        assertEquals("RULE_PEDAGOGIC_FALLBACK_V9", response.getRuleReferenceCode());
+        assertNotNull(response.getFormula(), "Deve conter fórmula matemática dedutiva");
+        assertTrue(response.getFormula().contains("LIATE") || response.getFormula().contains("∫ u dv"));
+        assertNotNull(response.getBulletPoints());
+        assertFalse(response.getBulletPoints().isEmpty());
+        assertFalse(response.getRecommendedTeachers().isEmpty(), "Deve sugerir docentes para a matéria");
+        assertNotNull(response.getActionCard(), "Deve conter Card de Ação para agendamento manual");
+    }
+
+    @Test
+    @DisplayName("[BACK-018] Deve processar chip 'Gerar Resumo' com síntese teórica e código conceitual")
+    void deveProcessarChipGerarResumoComSinteseTeorica() {
+        PerguntaAssistenteDTO request = new PerguntaAssistenteDTO(
+                "Gere um resumo sobre Árvores Binárias de Busca em Estrutura de Dados.",
+                "Estrutura de Dados",
+                "GERAR_RESUMO"
+        );
+
+        TriageResponseDTO response = assistantService.processarPergunta(request, 1001L);
+
+        assertNotNull(response);
+        assertTrue(response.getAssistantMessage().contains("Árvores Binárias") || response.getAssistantMessage().contains("BST"));
+        assertNotNull(response.getCodeSnippet(), "Deve fornecer snippet de código/propriedade invariante");
+        assertNotNull(response.getBulletPoints());
+        assertTrue(response.getBulletPoints().stream().anyMatch(b -> b.contains("O(log n)")));
+        assertFalse(response.getRecommendedTeachers().isEmpty());
+    }
+
+    @Test
+    @DisplayName("[BACK-018] Deve processar chip 'Plano de Estudo' com roteiro semanal estruturado")
+    void deveProcessarChipPlanoDeEstudo() {
+        PerguntaAssistenteDTO request = new PerguntaAssistenteDTO(
+                "Monte um plano de estudo semanal equilibrado para Cálculo e Algoritmos",
+                "Cálculo I",
+                "PLANO_ESTUDO"
+        );
+
+        TriageResponseDTO response = assistantService.processarPergunta(request, 1001L);
+
+        assertNotNull(response);
+        assertNotNull(response.getBulletPoints());
+        assertTrue(response.getBulletPoints().stream().anyMatch(b -> b.contains("Segunda") || b.contains("Bloco")));
+        assertFalse(response.getQuickOptions().isEmpty());
+    }
+
+    @Test
+    @DisplayName("[BACK-018] Deve processar chip 'Dicas de Prova' com metodologias de retenção ativa")
+    void deveProcessarChipDicasDeProva() {
+        PerguntaAssistenteDTO request = new PerguntaAssistenteDTO(
+                "Quais as melhores técnicas de memorização para provas de exatas?",
+                "Cálculo I",
+                "DICAS_PROVA"
+        );
+
+        TriageResponseDTO response = assistantService.processarPergunta(request, 1001L);
+
+        assertNotNull(response);
+        assertNotNull(response.getBulletPoints());
+        assertTrue(response.getBulletPoints().stream().anyMatch(b -> b.contains("Feynman") || b.contains("Active Recall")));
+    }
+
+    @Test
+    @DisplayName("[BACK-018] Deve processar pergunta livre inferindo disciplina e retornando professores compatíveis")
+    void deveProcessarPerguntaLivreInferindoDisciplina() {
+        PerguntaAssistenteDTO request = new PerguntaAssistenteDTO("Qual a diferença entre 1FN, 2FN e 3FN no modelo relacional?");
+
+        TriageResponseDTO response = assistantService.processarPergunta(request, 1001L);
+
+        assertNotNull(response);
+        assertNotNull(response.getBulletPoints());
+        assertNotNull(response.getActionCard());
+        assertEquals("Banco de Dados", response.getActionCard().getDisciplinaNome());
     }
 }

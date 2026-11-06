@@ -20,6 +20,9 @@ public class TriageResponseDTO implements Serializable {
     private String supportTicketDraftProtocol;
     private boolean isDeterministicRuleBased = true;
     private String ruleReferenceCode; // Ex: RULE_TREE_V9_01
+    private String formula;
+    private String codeSnippet;
+    private List<String> bulletPoints = new ArrayList<>();
 
     public TriageResponseDTO() {
     }
@@ -94,5 +97,29 @@ public class TriageResponseDTO implements Serializable {
 
     public void setRuleReferenceCode(String ruleReferenceCode) {
         this.ruleReferenceCode = ruleReferenceCode;
+    }
+
+    public String getFormula() {
+        return formula;
+    }
+
+    public void setFormula(String formula) {
+        this.formula = formula;
+    }
+
+    public String getCodeSnippet() {
+        return codeSnippet;
+    }
+
+    public void setCodeSnippet(String codeSnippet) {
+        this.codeSnippet = codeSnippet;
+    }
+
+    public List<String> getBulletPoints() {
+        return bulletPoints;
+    }
+
+    public void setBulletPoints(List<String> bulletPoints) {
+        this.bulletPoints = bulletPoints;
     }
 }

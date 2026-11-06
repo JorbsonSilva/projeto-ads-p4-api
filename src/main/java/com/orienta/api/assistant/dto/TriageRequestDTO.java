@@ -39,6 +39,8 @@ public class TriageRequestDTO implements Serializable {
 
     private String selectedOptionPayload;
 
+    private String chipTipo;
+
     public TriageRequestDTO() {
     }
 
@@ -120,5 +122,13 @@ public class TriageRequestDTO implements Serializable {
 
     public void setSelectedOptionPayload(String selectedOptionPayload) {
         this.selectedOptionPayload = selectedOptionPayload;
+    }
+
+    public String getChipTipo() {
+        return chipTipo;
+    }
+
+    public void setChipTipo(String chipTipo) {
+        this.chipTipo = chipTipo;
     }
 }

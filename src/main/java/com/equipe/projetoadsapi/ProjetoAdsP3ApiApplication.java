@@ -3,7 +3,7 @@ package com.equipe.projetoadsapi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.equipe.projetoadsapi", "com.orienta.api.assistant"})
 public class ProjetoAdsP3ApiApplication {
 
 	public static void main(String[] args) {
