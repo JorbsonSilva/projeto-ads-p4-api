@@ -30,10 +30,11 @@ public class ProfessorBuscaResponseDTO {
     private Double notaMedia;
     private Integer totalAvaliacoes;
 
-    // Campos de Atendimento Presencial e Localização Minimizada
+    // Campos de Atendimento Presencial e Localização Minimizada (LGPD)
     private Boolean oferecePresencial;
     private String regiaoAtendimento;
     private Double distanciaAproximadaKm;
+    private Double distanciaKm;
     private String textoProximidade;
 
     // Competências e Valores por hora
@@ -80,6 +81,7 @@ public class ProfessorBuscaResponseDTO {
                 .oferecePresencial(usuario.getOferecePresencial() != null && usuario.getOferecePresencial())
                 .regiaoAtendimento(usuario.getRegiaoAtendimento())
                 .distanciaAproximadaKm(distanciaKm)
+                .distanciaKm(distanciaKm)
                 .textoProximidade(textoProximidade)
                 .aptidoes(aptidoesDTO)
                 .build();

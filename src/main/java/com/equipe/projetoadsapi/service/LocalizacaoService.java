@@ -65,6 +65,14 @@ public class LocalizacaoService {
     }
 
     /**
+     * Verifica se o ponto de destino está dentro do raio máximo especificado a partir do ponto de origem.
+     */
+    public boolean estaDentroDoRaio(double lat1, double lon1, double lat2, double lon2, int raioMaximoKm) {
+        double dist = calcularDistanciaHaversine(lat1, lon1, lat2, lon2);
+        return dist <= normalizarRaio(raioMaximoKm);
+    }
+
+    /**
      * Gera mensagem amigável de proximidade para a interface sem revelar endereço (MAP-006).
      * Exemplo: "Aproximadamente 3.2 km da sua localização" ou "Na sua região (Boa Viagem)"
      */

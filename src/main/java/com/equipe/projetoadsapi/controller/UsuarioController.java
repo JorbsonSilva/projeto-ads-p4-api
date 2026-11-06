@@ -234,7 +234,25 @@ public class UsuarioController {
         return ResponseEntity.ok(ApiResponse.ok(dtoList, "Professores em destaque recuperados"));
     }
 
-    @Operation(summary = "Busca avançada de professores com geolocalização e raio (Fase 8)", 
+    @Operation(summary = "Busca presencial geográfica de professores por Haversine (BACK-017)", 
+               description = "Busca professores presenciais ordenados por distância esférica (Haversine) com raio de atendimento e proteção de coordenadas sensíveis (LGPD).")
+    @GetMapping("/professores/busca-presencial")
+    public ResponseEntity<ApiResponse<List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO>>> buscarProfessoresPresencial(
+            @RequestParam(required = false) Long saberId,
+            @RequestParam(required = false) String termo,
+            @RequestParam(required = false) String regiao,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false, defaultValue = "10") Integer raioKm,
+            @RequestParam(required = false) Double precoMax
+    ) {
+        List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO> resultados = service.buscarProfessoresAvancado(
+                saberId, "PRESENCIAL", termo, regiao, latitude, longitude, raioKm, precoMax
+        );
+        return ResponseEntity.ok(ApiResponse.ok(resultados, "Professores presenciais encontrados com sucesso"));
+    }
+
+    @Operation(summary = "Busca avançada de professores com geolocalização e raio (Fase 8 / BACK-017)", 
                description = "Filtra por disciplina, modalidade (PRESENCIAL/ONLINE), raio aproximado (Haversine), região e preço máximo.")
     @GetMapping("/professores/busca")
     public ResponseEntity<ApiResponse<List<com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO>>> buscarProfessores(
@@ -253,8 +271,8 @@ public class UsuarioController {
         return ResponseEntity.ok(ApiResponse.ok(resultados, "Professores encontrados com sucesso"));
     }
 
-    @Operation(summary = "Atualizar área de atendimento presencial e localização (Fase 8)", 
-               description = "Permite ao professor configurar sua região de atendimento, raio máximo e disponibilidade presencial.")
+    @Operation(summary = "Atualizar área de atendimento presencial e localização (BACK-017)", 
+               description = "Permite ao professor configurar sua região de atendimento, raio máximo e disponibilidade presencial com validação de ownership.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("(hasRole('PROFESSOR') and @resourceOwnershipService.isDonoDoRecurso(#id)) or hasRole('ADMIN')")
     @PutMapping("/{id}/localizacao")

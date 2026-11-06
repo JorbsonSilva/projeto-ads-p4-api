@@ -4,6 +4,8 @@ import com.equipe.projetoadsapi.model.*;
 import com.equipe.projetoadsapi.repository.AptidaoRepository;
 import com.equipe.projetoadsapi.repository.DisponibilidadeRepository;
 import com.equipe.projetoadsapi.repository.InteresseRepository;
+import com.equipe.projetoadsapi.dto.AtualizarLocalizacaoDTO;
+import com.equipe.projetoadsapi.dto.ProfessorBuscaResponseDTO;
 import com.equipe.projetoadsapi.security.CustomUserDetailsService;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
@@ -17,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -181,5 +184,108 @@ public class UsuarioControllerTest {
 
         verify(ownershipService, times(1)).validarAcessoDocente(2L);
         verify(usuarioService, times(1)).atualizarPerfilProfessor(eq(2L), anyString(), anyList(), anyList());
+    }
+
+    @Test
+    @DisplayName("[BACK-017] Deve buscar professores presenciais ordenados por proximidade geográfica via Haversine")
+    void deveBuscarProfessoresPresenciaisPorHaversineComSucesso() throws Exception {
+        ProfessorBuscaResponseDTO p1 = ProfessorBuscaResponseDTO.builder()
+                .id(2L)
+                .nome("Prof. Roberto Gomes")
+                .oferecePresencial(true)
+                .regiaoAtendimento("Boa Viagem")
+                .distanciaAproximadaKm(4.2)
+                .distanciaKm(4.2)
+                .textoProximidade("Aprox. 4.2 km")
+                .notaMedia(4.9)
+                .totalAvaliacoes(15)
+                .build();
+
+        when(usuarioService.buscarProfessoresAvancado(
+                isNull(), eq("PRESENCIAL"), isNull(), isNull(), eq(-8.063169), eq(-34.871139), eq(10), isNull()
+        )).thenReturn(List.of(p1));
+
+        mockMvc.perform(get("/api/v1/usuarios/professores/busca-presencial?latitude=-8.063169&longitude=-34.871139&raioKm=10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(2))
+                .andExpect(jsonPath("$.data[0].nome").value("Prof. Roberto Gomes"))
+                .andExpect(jsonPath("$.data[0].oferecePresencial").value(true))
+                .andExpect(jsonPath("$.data[0].distanciaAproximadaKm").value(4.2))
+                .andExpect(jsonPath("$.data[0].distanciaKm").value(4.2))
+                .andExpect(jsonPath("$.data[0].textoProximidade").value("Aprox. 4.2 km"))
+                .andExpect(jsonPath("$.data[0].latitude").doesNotExist())
+                .andExpect(jsonPath("$.data[0].longitude").doesNotExist())
+                .andExpect(jsonPath("$.data[0].latitudeAproximada").doesNotExist())
+                .andExpect(jsonPath("$.data[0].longitudeAproximada").doesNotExist())
+                .andExpect(jsonPath("$.message").value("Professores presenciais encontrados com sucesso"));
+
+        verify(usuarioService, times(1)).buscarProfessoresAvancado(
+                isNull(), eq("PRESENCIAL"), isNull(), isNull(), eq(-8.063169), eq(-34.871139), eq(10), isNull()
+        );
+    }
+
+    @Test
+    @DisplayName("[BACK-017] Deve atualizar localização e área de atendimento presencial do professor com sucesso")
+    void deveAtualizarLocalizacaoDocenteComSucesso() throws Exception {
+        Usuario professorAtualizado = new Usuario();
+        professorAtualizado.setId(2L);
+        professorAtualizado.setNome("Prof. Roberto Gomes");
+        professorAtualizado.setEmail("roberto@orienta.com.br");
+        professorAtualizado.setPapel(PapelUsuario.ROLE_PROFESSOR);
+        professorAtualizado.setOferecePresencial(true);
+        professorAtualizado.setRegiaoAtendimento("Boa Viagem");
+        professorAtualizado.setLatitudeAproximada(-8.1189);
+        professorAtualizado.setLongitudeAproximada(-34.8988);
+        professorAtualizado.setRaioAtendimentoKm(15);
+
+        AtualizarLocalizacaoDTO dto = AtualizarLocalizacaoDTO.builder()
+                .oferecePresencial(true)
+                .regiaoAtendimento("Boa Viagem")
+                .latitudeAproximada(-8.1189)
+                .longitudeAproximada(-34.8988)
+                .raioAtendimentoKm(15)
+                .build();
+
+        when(usuarioService.atualizarLocalizacaoProfessor(eq(2L), any(AtualizarLocalizacaoDTO.class)))
+                .thenReturn(professorAtualizado);
+
+        mockMvc.perform(put("/api/v1/usuarios/2/localizacao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(2))
+                .andExpect(jsonPath("$.data.nome").value("Prof. Roberto Gomes"))
+                .andExpect(jsonPath("$.data.latitude").doesNotExist())
+                .andExpect(jsonPath("$.data.longitude").doesNotExist())
+                .andExpect(jsonPath("$.data.latitudeAproximada").doesNotExist())
+                .andExpect(jsonPath("$.data.longitudeAproximada").doesNotExist())
+                .andExpect(jsonPath("$.message").value("Área de atendimento e localização atualizadas com sucesso"));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(2L);
+        verify(usuarioService, times(1)).atualizarLocalizacaoProfessor(eq(2L), any(AtualizarLocalizacaoDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-017] Deve bloquear com 403 Forbidden tentativa de atualização de localização de outro usuário")
+    void deveBloquearAtualizacaoDeLocalizacaoPorUsuarioNaoAutorizado() throws Exception {
+        AtualizarLocalizacaoDTO dto = AtualizarLocalizacaoDTO.builder()
+                .oferecePresencial(true)
+                .regiaoAtendimento("Invasão")
+                .build();
+
+        doThrow(new AccessDeniedException("Acesso negado: Você não tem permissão para alterar localização de outro usuário."))
+                .when(ownershipService).validarAcessoDocente(99L);
+
+        mockMvc.perform(put("/api/v1/usuarios/99/localizacao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Acesso negado: Acesso negado: Você não tem permissão para alterar localização de outro usuário."));
+
+        verify(ownershipService, times(1)).validarAcessoDocente(99L);
+        verify(usuarioService, never()).atualizarLocalizacaoProfessor(anyLong(), any());
     }
 }
