@@ -17,14 +17,14 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
- * SERVIÇO DE SUPORTE INTERNO, TICKETS COM PROTOCOLO AUDITÁVEL E MODERAÇÃO DE CONDUTA.
- * Rastreabilidade: Fase 7 - Bloco K (BACK-015)
+ * SERVIÇO DE SUPORTE INTERNO, TICKETS E CANAL DE DENÚNCIAS / OUVIDORIA.
+ * Rastreabilidade: Fase 7 - Bloco K (BACK-015, BACK-016)
  * 
  * Regras de Negócio e Segurança:
- * 1. Protocolo auditável gerado no formato SUP-YYYY-XXXXX (ex: SUP-2026-10492).
- * 2. Isolamento por usuário: usuários comuns visualizam apenas seus próprios chamados.
- * 3. Tentativas de acesso a tickets de terceiros resultam em AccessDeniedException (HTTP 403 Forbidden).
- * 4. Fila geral e resposta/parecer restritos exclusivamente ao papel de administrador (ROLE_ADMIN).
+ * 1. Protocolo auditável gerado no formato SUP-YYYY-XXXXX para tickets e DEN-YYYY-XXXXX para denúncias.
+ * 2. Bloqueio estrito de auto-denúncia (denuncianteId != denunciadoId).
+ * 3. Sigilo e proteção da identidade do denunciante.
+ * 4. Fila geral de atendimento e moderação restritas exclusivamente a administradores (ROLE_ADMIN).
  */
 @Service
 public class SuporteService {
@@ -40,6 +40,9 @@ public class SuporteService {
 
     @Autowired
     private AgendamentoRepository agendamentoRepository;
+
+    @Autowired
+    private MensagemRepository mensagemRepository;
 
     @Autowired
     private NotificacaoService notificacaoService;
@@ -160,41 +163,73 @@ public class SuporteService {
     }
 
     // ==========================================
-    // DENÚNCIAS E MODERAÇÃO (f7-t7)
+    // CANAL DE DENÚNCIAS E OUVIDORIA (BACK-016)
     // ==========================================
 
+    /**
+     * Registra nova denúncia na ouvidoria com protocolo auditável DEN-YYYY-XXXXX.
+     * Rastreabilidade: Fase 7 - Bloco K (BACK-016)
+     */
     @Transactional
     public DenunciaDTO criarDenuncia(Long denuncianteId, CriarDenunciaDTO dto) {
-        if (denuncianteId.equals(dto.getDenunciadoId())) {
+        if (denuncianteId == null) {
+            throw new AccessDeniedException("Identificador do denunciante não informado.");
+        }
+
+        // Regra de Proteção Ética: Bloqueio estrito de auto-denúncia (RN-001)
+        if (dto.getDenunciadoId() != null && denuncianteId.equals(dto.getDenunciadoId())) {
             throw new RegraNegocioException("Não é permitido denunciar o próprio perfil.");
         }
 
         Usuario denunciante = usuarioRepository.findById(denuncianteId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Denunciante não encontrado: " + denuncianteId));
 
-        Usuario denunciado = usuarioRepository.findById(dto.getDenunciadoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário denunciado não encontrado: " + dto.getDenunciadoId()));
+        Usuario denunciado = null;
+        if (dto.getDenunciadoId() != null) {
+            denunciado = usuarioRepository.findById(dto.getDenunciadoId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário denunciado não encontrado: " + dto.getDenunciadoId()));
+        }
 
         Agendamento agendamento = null;
         if (dto.getAgendamentoId() != null) {
             agendamento = agendamentoRepository.findById(dto.getAgendamentoId()).orElse(null);
+            if (agendamento != null && denunciado == null) {
+                // Infere o denunciado a partir do agendamento se não tiver sido passado explicitamente
+                denunciado = agendamento.getAluno().getId().equals(denuncianteId)
+                        ? agendamento.getProfessor()
+                        : agendamento.getAluno();
+            }
         }
 
+        Mensagem mensagem = null;
+        if (dto.getMensagemId() != null) {
+            mensagem = mensagemRepository.findById(dto.getMensagemId()).orElse(null);
+        }
+
+        int ano = LocalDate.now().getYear();
+        int seq = ThreadLocalRandom.current().nextInt(10000, 99999);
+        String protocolo = String.format("DEN-%d-%05d", ano, seq);
+
         Denuncia denuncia = Denuncia.builder()
+                .protocolo(protocolo)
                 .denunciante(denunciante)
                 .denunciado(denunciado)
                 .agendamento(agendamento)
+                .mensagem(mensagem)
                 .motivo(dto.getMotivo().trim())
                 .descricao(dto.getDescricao().trim())
                 .status(StatusDenuncia.PENDENTE)
+                .criadaEm(Instant.now())
+                .dataAtualizacao(Instant.now())
                 .build();
 
         Denuncia salva = denunciaRepository.save(denuncia);
 
+        // Notificação de sigilo e confirmação de protocolo
         notificacaoService.criarNotificacao(
                 denunciante,
-                "Denúncia Registrada",
-                "Sua manifestação foi recebida e será analisada com rigor pela equipe de moderação.",
+                "Denúncia Registrada: " + salva.getProtocolo(),
+                "Sua manifestação foi recebida sob protocolo " + salva.getProtocolo() + " e será analisada com rigor e sigilo pela moderação.",
                 TipoNotificacao.SISTEMA,
                 salva.getId()
         );
@@ -202,11 +237,58 @@ public class SuporteService {
         return DenunciaDTO.fromEntity(salva);
     }
 
+    /**
+     * Lista todas as denúncias ordenadas decrescente por data para a fila da moderação (ADMIN).
+     */
     @Transactional(readOnly = true)
     public List<DenunciaDTO> listarDenuncias(StatusDenuncia status) {
         List<Denuncia> list = status != null 
                 ? denunciaRepository.findByStatusOrderByCriadaEmDesc(status)
-                : denunciaRepository.findAll();
+                : denunciaRepository.findAllByOrderByCriadaEmDesc();
         return list.stream().map(DenunciaDTO::fromEntity).collect(Collectors.toList());
+    }
+
+    /**
+     * Detalha uma denúncia por ID para a equipe de moderação.
+     */
+    @Transactional(readOnly = true)
+    public DenunciaDTO obterDenuncia(Long id) {
+        Denuncia denuncia = denunciaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Denúncia não encontrada: " + id));
+        return DenunciaDTO.fromEntity(denuncia);
+    }
+
+    /**
+     * Aplica parecer técnico e julgamento ético de moderação à denúncia (exclusivo para ADMIN).
+     */
+    @Transactional
+    public DenunciaDTO moderarDenuncia(Long denunciaId, Long moderadorId, ModerarDenunciaDTO dto) {
+        Denuncia denuncia = denunciaRepository.findById(denunciaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Denúncia não encontrada: " + denunciaId));
+
+        Usuario moderador = null;
+        if (moderadorId != null) {
+            moderador = usuarioRepository.findById(moderadorId).orElse(null);
+        }
+
+        denuncia.setParecerModeracao(dto.getParecerModerador().trim());
+        denuncia.setParecerModerador(dto.getParecerModerador().trim());
+        denuncia.setStatus(dto.getNovoStatus());
+        denuncia.setAnalisadoPor(moderador);
+        denuncia.setAnalisadaEm(Instant.now());
+        denuncia.setDataAtualizacao(Instant.now());
+
+        Denuncia salva = denunciaRepository.save(denuncia);
+
+        // Notificação de conclusão ao denunciante
+        notificacaoService.criarNotificacao(
+                denuncia.getDenunciante(),
+                "Moderação de Denúncia: " + salva.getProtocolo(),
+                "Sua manifestação foi julgada pela moderação. Status final: " + salva.getStatus(),
+                TipoNotificacao.SISTEMA,
+                salva.getId()
+        );
+
+        return DenunciaDTO.fromEntity(salva);
     }
 }

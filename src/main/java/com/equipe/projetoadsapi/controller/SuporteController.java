@@ -19,17 +19,17 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * CONTROLLER DE SUPORTE E DENÚNCIAS (v1).
- * Rastreabilidade: Fase 7 - Bloco K (BACK-015) & Tarefas [BACK-003], [BACK-014]
+ * CONTROLLER DE SUPORTE E DENÚNCIAS / OUVIDORIA (v1).
+ * Rastreabilidade: Fase 7 - Bloco K (BACK-015, BACK-016)
  * 
  * Enforcing de segurança RBAC e Governança:
- * - Usuários comuns abrem tickets atrelados a seu próprio ID com protocolo oficial (SUP-YYYY-XXXXX).
- * - Usuários visualizam exclusivamente seus próprios chamados (bloqueio de cross-reading via HTTP 403 Forbidden).
- * - Fila geral e resposta/parecer de tickets restritos exclusivamente a administradores (ROLE_ADMIN).
+ * - Abertura de tickets (SUP-YYYY-XXXXX) e denúncias (DEN-YYYY-XXXXX) com protocolo auditável.
+ * - Bloqueio de auto-denúncia (RN-001) e proteção de sigilo do denunciante.
+ * - Fila geral de atendimento e moderação restritas exclusivamente a administradores (ROLE_ADMIN).
  */
 @RestController
 @RequestMapping({"/api/v1/suporte", "/api/suporte"})
-@Tag(name = "Suporte & Moderação (v1)", description = "Abertura de tickets de atendimento e denúncias de conduta com protocolo auditável")
+@Tag(name = "Suporte & Moderação (v1)", description = "Abertura de tickets de atendimento e canal de denúncias éticas na Ouvidoria")
 @SecurityRequirement(name = "bearerAuth")
 public class SuporteController {
 
@@ -38,6 +38,10 @@ public class SuporteController {
 
     @Autowired
     private ResourceOwnershipService ownershipService;
+
+    // ==========================================
+    // TICKETS DE SUPORTE (BACK-015)
+    // ==========================================
 
     @Operation(summary = "Abrir ticket de suporte", description = "Cria um novo chamado categorizado com protocolo único no formato SUP-YYYY-XXXXX.")
     @PostMapping("/tickets")
@@ -92,7 +96,11 @@ public class SuporteController {
         return ResponseEntity.ok(ApiResponse.ok(ticket, "Resposta enviada e ticket atualizado"));
     }
 
-    @Operation(summary = "Registrar denúncia de usuário", description = "Envia uma denúncia para a equipe de moderação avaliar conduta imprópria.")
+    // ==========================================
+    // CANAL DE DENÚNCIAS E OUVIDORIA (BACK-016)
+    // ==========================================
+
+    @Operation(summary = "Registrar denúncia de usuário ou conduta", description = "Envia uma denúncia para a equipe de moderação com protocolo auditável DEN-YYYY-XXXXX.")
     @PostMapping("/denuncias")
     public ResponseEntity<ApiResponse<DenunciaDTO>> criarDenuncia(
             @RequestParam(required = false) Long denuncianteId,
@@ -100,16 +108,36 @@ public class SuporteController {
         Long idAlvo = obterEValidarUsuarioAlvo(denuncianteId);
         DenunciaDTO denuncia = suporteService.criarDenuncia(idAlvo, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(denuncia, "Denúncia enviada com sucesso para a moderação"));
+                .body(ApiResponse.created(denuncia, "Denúncia registrada com sucesso! Protocolo: " + denuncia.getProtocolo()));
     }
 
-    @Operation(summary = "Listar denúncias (ADMIN)", description = "Visualização de denúncias pendentes para a moderação/administração.")
+    @Operation(summary = "Listar denúncias para moderação (ADMIN)", description = "Visualização da fila de denúncias pendentes e analisadas pela moderação.")
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/denuncias")
     public ResponseEntity<ApiResponse<List<DenunciaDTO>>> listarDenuncias(
             @RequestParam(required = false) StatusDenuncia status) {
         List<DenunciaDTO> denuncias = suporteService.listarDenuncias(status);
-        return ResponseEntity.ok(ApiResponse.ok(denuncias, "Denúncias recuperadas"));
+        return ResponseEntity.ok(ApiResponse.ok(denuncias, "Fila de moderação de denúncias recuperada"));
+    }
+
+    @Operation(summary = "Obter detalhes de uma denúncia (ADMIN)", description = "Detalha ocorrência para análise da moderação.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/denuncias/{id}")
+    public ResponseEntity<ApiResponse<DenunciaDTO>> obterDenuncia(@PathVariable Long id) {
+        DenunciaDTO denuncia = suporteService.obterDenuncia(id);
+        return ResponseEntity.ok(ApiResponse.ok(denuncia, "Denúncia detalhada com sucesso"));
+    }
+
+    @Operation(summary = "Moderar denúncia e atribuir parecer (ADMIN)", description = "Aplica parecer técnico e julgamento ético da moderação.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RequestMapping(value = "/denuncias/{id}/moderar", method = {RequestMethod.PATCH, RequestMethod.PUT})
+    public ResponseEntity<ApiResponse<DenunciaDTO>> moderarDenuncia(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long moderadorId,
+            @Valid @RequestBody ModerarDenunciaDTO dto) {
+        Long idModerador = (moderadorId != null) ? moderadorId : SecurityUtils.getUsuarioAutenticadoId();
+        DenunciaDTO denuncia = suporteService.moderarDenuncia(id, idModerador, dto);
+        return ResponseEntity.ok(ApiResponse.ok(denuncia, "Denúncia moderada com sucesso! Status: " + denuncia.getStatus()));
     }
 
     private Long obterEValidarUsuarioAlvo(Long usuarioId) {

@@ -1,10 +1,15 @@
 package com.equipe.projetoadsapi.controller;
 
+import com.equipe.projetoadsapi.dto.CriarDenunciaDTO;
 import com.equipe.projetoadsapi.dto.CriarTicketDTO;
+import com.equipe.projetoadsapi.dto.DenunciaDTO;
+import com.equipe.projetoadsapi.dto.ModerarDenunciaDTO;
 import com.equipe.projetoadsapi.dto.ResponderTicketDTO;
 import com.equipe.projetoadsapi.dto.TicketSuporteDTO;
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.model.CategoriaTicket;
 import com.equipe.projetoadsapi.model.PrioridadeTicket;
+import com.equipe.projetoadsapi.model.StatusDenuncia;
 import com.equipe.projetoadsapi.model.StatusTicket;
 import com.equipe.projetoadsapi.security.CustomUserDetailsService;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
@@ -193,5 +198,118 @@ public class SuporteControllerTest {
                 .andExpect(jsonPath("$.message").value("Resposta enviada e ticket atualizado"));
 
         verify(suporteService, times(1)).responderTicket(eq(101L), eq(1L), any(ResponderTicketDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-016] Deve registrar denúncia ética com protocolo oficial DEN-YYYY-XXXXX e retornar 201 Created")
+    void deveCriarDenunciaComProtocoloOficial() throws Exception {
+        CriarDenunciaDTO request = CriarDenunciaDTO.builder()
+                .denunciadoId(20L)
+                .agendamentoId(101L)
+                .motivo("CONDUTA_INAPROPRIADA")
+                .descricao("O professor utilizou linguajar ofensivo durante a aula.")
+                .build();
+
+        DenunciaDTO response = DenunciaDTO.builder()
+                .id(1L)
+                .denuncianteId(10L)
+                .denuncianteNome("Ana Clara")
+                .denunciadoId(20L)
+                .denunciadoNome("Prof. Lucas Rocha")
+                .agendamentoId(101L)
+                .protocolo("DEN-2026-88771")
+                .motivo("CONDUTA_INAPROPRIADA")
+                .descricao("O professor utilizou linguajar ofensivo durante a aula.")
+                .status(StatusDenuncia.PENDENTE)
+                .criadoEm(Instant.now())
+                .build();
+
+        when(suporteService.criarDenuncia(eq(10L), any(CriarDenunciaDTO.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/suporte/denuncias?denuncianteId=10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.protocolo").value("DEN-2026-88771"))
+                .andExpect(jsonPath("$.data.status").value("PENDENTE"))
+                .andExpect(jsonPath("$.message").value("Denúncia registrada com sucesso! Protocolo: DEN-2026-88771"));
+
+        verify(ownershipService, times(1)).validarPropriedadeUsuario(10L);
+        verify(suporteService, times(1)).criarDenuncia(eq(10L), any(CriarDenunciaDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-016] Deve bloquear auto-denúncia retornando 422 Unprocessable Entity (RN-001)")
+    void deveBloquearAutoDenuncia() throws Exception {
+        CriarDenunciaDTO request = CriarDenunciaDTO.builder()
+                .denunciadoId(10L)
+                .motivo("FRAUDE")
+                .descricao("Auto denúncia indevida")
+                .build();
+
+        when(suporteService.criarDenuncia(eq(10L), any(CriarDenunciaDTO.class)))
+                .thenThrow(new RegraNegocioException("Não é permitido denunciar o próprio perfil."));
+
+        mockMvc.perform(post("/api/v1/suporte/denuncias?denuncianteId=10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("Violação de Regra de Negócio"))
+                .andExpect(jsonPath("$.message").value("Não é permitido denunciar o próprio perfil."));
+
+        verify(suporteService, times(1)).criarDenuncia(eq(10L), any(CriarDenunciaDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-016] Deve listar fila de moderação de denúncias para moderadores/admin")
+    void deveListarDenunciasParaAdmin() throws Exception {
+        DenunciaDTO d1 = DenunciaDTO.builder()
+                .id(1L)
+                .protocolo("DEN-2026-88771")
+                .status(StatusDenuncia.PENDENTE)
+                .motivo("CONDUTA_INAPROPRIADA")
+                .build();
+
+        when(suporteService.listarDenuncias(null)).thenReturn(List.of(d1));
+
+        mockMvc.perform(get("/api/v1/suporte/denuncias"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].protocolo").value("DEN-2026-88771"))
+                .andExpect(jsonPath("$.message").value("Fila de moderação de denúncias recuperada"));
+
+        verify(suporteService, times(1)).listarDenuncias(null);
+    }
+
+    @Test
+    @DisplayName("[BACK-016] Deve moderar denúncia com atribuição de parecer técnico e julgamento ético (PATCH /denuncias/{id}/moderar)")
+    void deveModerarDenunciaComSucesso() throws Exception {
+        ModerarDenunciaDTO request = ModerarDenunciaDTO.builder()
+                .novoStatus(StatusDenuncia.PROCEDENTE)
+                .parecerModerador("Denúncia confirmada após análise dos logs do chat e histórico da mentoria.")
+                .build();
+
+        DenunciaDTO response = DenunciaDTO.builder()
+                .id(1L)
+                .protocolo("DEN-2026-88771")
+                .status(StatusDenuncia.PROCEDENTE)
+                .parecerModerador("Denúncia confirmada após análise dos logs do chat e histórico da mentoria.")
+                .build();
+
+        when(suporteService.moderarDenuncia(eq(1L), eq(1L), any(ModerarDenunciaDTO.class))).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/suporte/denuncias/1/moderar?adminId=1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("PROCEDENTE"))
+                .andExpect(jsonPath("$.data.parecerModerador").value("Denúncia confirmada após análise dos logs do chat e histórico da mentoria."))
+                .andExpect(jsonPath("$.message").value("Denúncia moderada com sucesso! Status: PROCEDENTE"));
+
+        verify(suporteService, times(1)).moderarDenuncia(eq(1L), eq(1L), any(ModerarDenunciaDTO.class));
     }
 }
