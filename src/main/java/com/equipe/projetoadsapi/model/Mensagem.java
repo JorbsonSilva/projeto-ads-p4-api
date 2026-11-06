@@ -34,6 +34,19 @@ public class Mensagem {
     private String conteudo;
 
     @Builder.Default
+    @Column(name = "tipo")
+    private String tipo = "TEXTO";
+
+    @Column(name = "anexo_url")
+    private String anexoUrl;
+
+    @Column(name = "nome_arquivo")
+    private String nomeArquivo;
+
+    @Column(name = "tamanho_arquivo")
+    private String tamanhoArquivo;
+
+    @Builder.Default
     private Boolean lida = false;
 
     @Column(name = "lida_em")
@@ -46,5 +59,6 @@ public class Mensagem {
     public void prePersist() {
         if (enviadaEm == null) enviadaEm = Instant.now();
         if (lida == null) lida = false;
+        if (tipo == null || tipo.isBlank()) tipo = "TEXTO";
     }
 }

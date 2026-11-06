@@ -1,6 +1,6 @@
 package com.equipe.projetoadsapi.controller;
 
-import com.equipe.projetoadsapi.dto.ConversaDTO;
+import com.equipe.projetoadsapi.dto.*;
 import com.equipe.projetoadsapi.security.CustomUserDetailsService;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
@@ -13,20 +13,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Testes automatizados do controller de Chat e Caixa de Entrada (BACK-013).
- * Rastreabilidade: Fase 7 - Bloco K (BACK-013) & Segurança Anti-ID Spoofing.
+ * Testes automatizados do controller de Chat, Mensagens e Status de Leitura (BACK-013, BACK-014).
+ * Rastreabilidade: Fase 7 - Bloco K (BACK-014) & Segurança Anti-ID Spoofing.
  */
 @WebMvcTest(ChatController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -101,7 +107,6 @@ public class ChatControllerTest {
         doThrow(new AccessDeniedException("Acesso negado: Você não tem permissão para visualizar dados de outro usuário."))
                 .when(ownershipService).validarPropriedadeUsuario(99L);
 
-        // Simulando tentativa de acessar conversas de outro usuário
         mockMvc.perform(get("/api/v1/chat/conversas?usuarioId=99"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
@@ -112,24 +117,115 @@ public class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("[BACK-013] Deve retornar metadados da conversa vinculada ao agendamento")
-    void deveRetornarConversaPorAgendamento() throws Exception {
-        ConversaDTO dto = ConversaDTO.builder()
+    @DisplayName("[BACK-014] Deve listar histórico de mensagens por agendamento (GET /agendamentos/{id}/mensagens)")
+    void deveListarMensagensPorAgendamento() throws Exception {
+        MensagemDTO m1 = MensagemDTO.builder()
                 .id(1L)
+                .conversaId(5L)
                 .agendamentoId(101L)
-                .assunto("Química Geral")
-                .mensagensNaoLidas(0L)
+                .remetenteId(10L)
+                .remetenteNome("Ana Clara")
+                .remetentePapel("ALUNO")
+                .conteudo("Boa tarde professor!")
+                .tipo("TEXTO")
+                .lida(true)
+                .confirmadaLeitura(true)
+                .enviadaEm(Instant.now())
                 .build();
 
-        when(chatService.obterOuCriarConversa(101L, 10L)).thenReturn(dto);
+        when(chatService.listarMensagens(101L, 10L)).thenReturn(List.of(m1));
 
-        mockMvc.perform(get("/api/v1/chat/agendamento/101?usuarioId=10"))
+        mockMvc.perform(get("/api/v1/chat/agendamentos/101/mensagens?usuarioId=10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value(1))
-                .andExpect(jsonPath("$.data.agendamentoId").value(101));
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].conteudo").value("Boa tarde professor!"))
+                .andExpect(jsonPath("$.data[0].lida").value(true))
+                .andExpect(jsonPath("$.data[0].confirmadaLeitura").value(true));
 
         verify(ownershipService, times(1)).validarPropriedadeUsuario(10L);
-        verify(chatService, times(1)).obterOuCriarConversa(101L, 10L);
+        verify(chatService, times(1)).listarMensagens(101L, 10L);
+    }
+
+    @Test
+    @DisplayName("[BACK-014] Deve recuperar histórico paginado de mensagens por agendamento")
+    void deveListarMensagensPaginadasPorAgendamento() throws Exception {
+        MensagemDTO m1 = MensagemDTO.builder()
+                .id(2L)
+                .conversaId(5L)
+                .agendamentoId(101L)
+                .conteudo("Mensagem paginada")
+                .build();
+
+        var pageResult = new PageImpl<>(List.of(m1), PageRequest.of(0, 10, Sort.by("enviadaEm").ascending()), 1);
+
+        when(chatService.listarMensagensPaginadasPorAgendamento(eq(101L), eq(10L), any()))
+                .thenReturn(pageResult);
+
+        mockMvc.perform(get("/api/v1/chat/agendamentos/101/mensagens?usuarioId=10&page=0&size=10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(2))
+                .andExpect(jsonPath("$.data[0].conteudo").value("Mensagem paginada"));
+    }
+
+    @Test
+    @DisplayName("[BACK-014] Deve enviar mensagem unificada com anexo (POST /api/v1/chat/mensagens)")
+    void deveEnviarMensagemUnificadaComAnexo() throws Exception {
+        MensagemRequestDTO request = MensagemRequestDTO.builder()
+                .agendamentoId(101L)
+                .remetenteId(10L)
+                .conteudo("Segue o comprovante em anexo.")
+                .tipo("ARQUIVO")
+                .anexoUrl("https://orienta.com.br/anexos/doc.pdf")
+                .nomeArquivo("doc.pdf")
+                .tamanhoArquivo("1.1 MB")
+                .build();
+
+        MensagemDTO response = MensagemDTO.builder()
+                .id(50L)
+                .agendamentoId(101L)
+                .remetenteId(10L)
+                .remetenteNome("Ana Clara")
+                .remetentePapel("ALUNO")
+                .conteudo("Segue o comprovante em anexo.")
+                .tipo("ARQUIVO")
+                .anexoUrl("https://orienta.com.br/anexos/doc.pdf")
+                .nomeArquivo("doc.pdf")
+                .tamanhoArquivo("1.1 MB")
+                .lida(false)
+                .enviadaEm(Instant.now())
+                .build();
+
+        when(chatService.enviarMensagemUnificada(any(MensagemRequestDTO.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/chat/mensagens")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(50))
+                .andExpect(jsonPath("$.data.tipo").value("ARQUIVO"))
+                .andExpect(jsonPath("$.data.anexoUrl").value("https://orienta.com.br/anexos/doc.pdf"))
+                .andExpect(jsonPath("$.data.lida").value(false))
+                .andExpect(jsonPath("$.message").value("Mensagem enviada com sucesso"));
+
+        verify(ownershipService, times(1)).validarPropriedadeUsuario(10L);
+        verify(chatService, times(1)).enviarMensagemUnificada(any(MensagemRequestDTO.class));
+    }
+
+    @Test
+    @DisplayName("[BACK-014] Deve atualizar em lote status de leitura da conversa (PATCH /conversas/{id}/ler)")
+    void deveAtualizarEmLoteStatusDeLeituraConversa() throws Exception {
+        when(chatService.marcarMensagensComoLidas(1L, 10L)).thenReturn(4);
+
+        mockMvc.perform(patch("/api/v1/chat/conversas/1/ler?usuarioId=10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(4))
+                .andExpect(jsonPath("$.message").value("4 mensagens marcadas como lidas"));
+
+        verify(ownershipService, times(1)).validarPropriedadeUsuario(10L);
+        verify(chatService, times(1)).marcarMensagensComoLidas(1L, 10L);
     }
 }
