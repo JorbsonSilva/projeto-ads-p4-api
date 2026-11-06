@@ -35,6 +35,9 @@ public class AulaService {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    @Autowired(required = false)
+    private FinanceiroService financeiroService;
+
     @Transactional
     public SessaoAulaDTO obterOuCriarSessao(Long agendamentoId) {
         Agendamento agendamento = agendamentoRepository.findById(agendamentoId)
@@ -210,6 +213,14 @@ public class AulaService {
 
             agendamento.setStatus(StatusAgendamento.REALIZADA);
             agendamentoRepository.save(agendamento);
+
+            if (financeiroService != null) {
+                try {
+                    financeiroService.registrarTransacoesConclusaoAula(agendamento);
+                } catch (Exception e) {
+                    // Log não impeditivo
+                }
+            }
 
             registrarEvento(sessao, TipoEventoAula.CONFIRMACAO_FIM, usuario, "Aula concluída com consentimento mútuo!", decorrido);
         }
