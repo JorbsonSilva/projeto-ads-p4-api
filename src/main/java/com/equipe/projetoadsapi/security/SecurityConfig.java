@@ -73,8 +73,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/assistente/**", "/api/v1/assistant/**").permitAll()
 
                         // 4. Documentação e Especificação OpenAPI / Swagger
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/api-docs/**", "/api/v1/swagger-ui/**", "/api/v1/swagger-ui.html", "/swagger-resources/**", "/webjars/**").permitAll()
+                        
                         // 5. Isolamento de Personas e RBAC (Requisito RN-001):
                         // Rotas exclusivas de Docentes e Financeiras: bloqueio estrito para ALUNO
                         .requestMatchers("/api/v1/professores/*/financeiro/**", "/api/professores/*/financeiro/**").hasAnyRole("PROFESSOR", "ADMIN")

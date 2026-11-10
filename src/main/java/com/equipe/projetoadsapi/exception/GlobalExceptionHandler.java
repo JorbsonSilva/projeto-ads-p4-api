@@ -30,7 +30,7 @@ import java.util.List;
  * - 422 Unprocessable Entity (Regra de Negócio)
  * - 500 Internal Server Error (Falha não prevista)
  */
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = {"com.equipe.projetoadsapi", "com.orienta.api"})
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
