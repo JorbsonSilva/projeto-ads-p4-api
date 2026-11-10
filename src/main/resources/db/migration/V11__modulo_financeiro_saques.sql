@@ -48,6 +48,19 @@ CREATE TABLE IF NOT EXISTS tb_transacao_financeira (
     CONSTRAINT chk_tipo_transacao CHECK (tipo_transacao IN ('CREDITO_AULA', 'RETENCAO_TAXA_INSTITUICAO', 'SAQUE_DEBITO', 'REEMBOLSO_ALUNO'))
 );
 
+-- Compatibilidade defensiva caso a tabela tenha sido pré-criada
+ALTER TABLE tb_transacao_financeira ADD COLUMN IF NOT EXISTS usuario_id BIGINT;
+ALTER TABLE tb_transacao_financeira ADD COLUMN IF NOT EXISTS valor DECIMAL(10,2);
+DO $$ 
+BEGIN 
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tb_transacao_financeira' AND column_name='professor_id') THEN
+        UPDATE tb_transacao_financeira SET usuario_id = professor_id WHERE usuario_id IS NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tb_transacao_financeira' AND column_name='valor_liquido') THEN
+        UPDATE tb_transacao_financeira SET valor = valor_liquido WHERE valor IS NULL;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_tb_transacao_usuario ON tb_transacao_financeira(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_tb_transacao_agendamento ON tb_transacao_financeira(agendamento_id);
 CREATE INDEX IF NOT EXISTS idx_tb_transacao_saque ON tb_transacao_financeira(saque_id);

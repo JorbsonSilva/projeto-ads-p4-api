@@ -126,3 +126,10 @@
   5. **Atualização da Área de Atendimento (`f8-t1` / MAP-002):** Endpoint `PUT /api/v1/usuarios/{id}/localizacao` permitindo ao professor configurar sua disponibilidade presencial, região e raio de atendimento.
   6. **Testes Automatizados de Localização (`f8-t6`):** Suite completa em `LocalizacaoEHaversineTest.java` validando precisão de Haversine com coordenadas de referência conhecidas, clamping de raios máximos, formatação de proximidade e auditoria de reflexão garantindo que o DTO público não contém campos de latitude/longitude.
 
+### Fase 10 — Homologação da Banca & Compatibilidade Flyway ✅ [CONCLUÍDA]
+* **Objetivo:** Garantir inicialização idempotente e sem conflitos de schema em bancos novos e legados com migrações defensivas V10 e V11.
+* **Entregas Realizadas:**
+  1. **Compatibilidade Defensiva em `V10__seed_banca_orienta.sql`:** Adição preventiva das colunas `tipo`, `anexo_url`, `nome_arquivo` e `tamanho_arquivo` em `tb_mensagens` para viabilizar inserts de mensagens antes da execução da V12.
+  2. **Compatibilidade Defensiva em `V11__modulo_financeiro_saques.sql`:** Adição condicional de `usuario_id` e `valor` em `tb_transacao_financeira` com script anônimo de sincronização retroativa (`professor_id` -> `usuario_id`), blindando a criação dos índices.
+  3. **Sincronização do Seed da Banca (`db/seed/V10__seed_banca_orienta.sql`):** Alinhamento total do arquivo de carga manual e scripts de reset (`reset-banca-seed.sh` / `.ps1`).
+

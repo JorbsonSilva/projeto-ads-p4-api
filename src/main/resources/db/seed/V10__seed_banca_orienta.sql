@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS tb_transacao_financeira (
 );
 
 -- Garantir colunas expandidas
+ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'TEXTO';
+ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS anexo_url VARCHAR(1000);
+ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS nome_arquivo VARCHAR(255);
+ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS tamanho_arquivo VARCHAR(50);
 ALTER TABLE tb_tickets_suporte ADD COLUMN IF NOT EXISTS assunto VARCHAR(150);
 ALTER TABLE tb_tickets_suporte ADD COLUMN IF NOT EXISTS resposta_admin TEXT;
 ALTER TABLE tb_denuncias ADD COLUMN IF NOT EXISTS protocolo VARCHAR(50);
