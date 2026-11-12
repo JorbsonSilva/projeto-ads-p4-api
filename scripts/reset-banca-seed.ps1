@@ -14,6 +14,7 @@ $env:PGPASSWORD = $DbPass
 Write-Host "🔄 [BANCA] Iniciando reset rápido do banco orientadb..." -ForegroundColor Cyan
 
 psql -h $DbHost -p $DbPort -U $DbUser -d $DbName -f src/main/resources/db/seed/V10__seed_banca_orienta.sql
+psql -h $DbHost -p $DbPort -U $DbUser -d $DbName -f src/main/resources/db/migration/V15__seed_cenarios_completos.sql
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ [BANCA] Banco populado com sucesso!" -ForegroundColor Green

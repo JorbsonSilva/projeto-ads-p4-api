@@ -17,8 +17,9 @@ export PGPASSWORD=$DB_PASS
 
 # Executa migrações Flyway ou reset direto
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f src/main/resources/db/seed/V10__seed_banca_orienta.sql
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f src/main/resources/db/migration/V15__seed_cenarios_completos.sql
 
-echo "✅ [BANCA] Banco populado com sucesso!"
+echo "✅ [BANCA] Banco populado com sucesso (V10 + V15 Seed Completo)!"
 echo "📋 Contas de teste ativas:"
 echo "   - Aluno: aluno.banca@orienta.edu.br (Senha@123)"
 echo "   - Professor: prof.carlos@orienta.edu.br (Senha@123)"
