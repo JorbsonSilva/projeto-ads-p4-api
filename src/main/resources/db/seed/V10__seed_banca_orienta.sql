@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS tb_transacao_financeira (
 );
 
 -- Garantir colunas expandidas
+ALTER TABLE tb_avaliacoes ADD COLUMN IF NOT EXISTS dominio INTEGER CHECK (dominio >= 1 AND dominio <= 5);
 ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'TEXTO';
 ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS anexo_url VARCHAR(1000);
 ALTER TABLE tb_mensagens ADD COLUMN IF NOT EXISTS nome_arquivo VARCHAR(255);
