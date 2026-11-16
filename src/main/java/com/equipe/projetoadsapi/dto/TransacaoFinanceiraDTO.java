@@ -28,6 +28,8 @@ public class TransacaoFinanceiraDTO {
     private BigDecimal valor;
     private String descricao;
     private Instant dataTransacao;
+    private String alunoNome;
+    private String materia;
 
     public static TransacaoFinanceiraDTO fromEntity(TransacaoFinanceira tf) {
         if (tf == null) return null;
@@ -40,6 +42,12 @@ public class TransacaoFinanceiraDTO {
                 .valor(tf.getValor())
                 .descricao(tf.getDescricao())
                 .dataTransacao(tf.getDataTransacao())
+                .alunoNome(tf.getAgendamento() != null && tf.getAgendamento().getAluno() != null
+                        ? tf.getAgendamento().getAluno().getNome()
+                        : null)
+                .materia(tf.getAgendamento() != null && tf.getAgendamento().getSaber() != null
+                        ? tf.getAgendamento().getSaber().getNome()
+                        : tf.getAgendamento() != null ? tf.getAgendamento().getAssunto() : null)
                 .build();
     }
 }

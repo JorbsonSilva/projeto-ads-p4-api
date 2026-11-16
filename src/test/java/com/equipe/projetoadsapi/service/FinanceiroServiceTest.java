@@ -247,6 +247,12 @@ public class FinanceiroServiceTest {
                 .thenReturn(Arrays.asList(aulaRealizada1, aulaRealizada2, aulaConfirmada)); // Pendente: R$ 180
         when(agendamentoRepository.countByProfessorIdAndStatus(10L, StatusAgendamento.REALIZADA))
                 .thenReturn(2L);
+        aulaRealizada1.setData(LocalDate.now().withDayOfMonth(3));
+        aulaRealizada2.setData(LocalDate.now().withDayOfMonth(8));
+        aulaConfirmada.setData(LocalDate.now().withDayOfMonth(20));
+        when(agendamentoRepository.findByProfessorIdAndDataBetween(
+                eq(10L), any(LocalDate.class), any(LocalDate.class)))
+                .thenReturn(Arrays.asList(aulaRealizada1, aulaRealizada2, aulaConfirmada));
         when(saqueRepository.somarValorPorProfessorEStatus(10L, StatusSaque.CONCLUIDO))
                 .thenReturn(new BigDecimal("50.00"));
         when(saqueRepository.findByProfessorIdAndStatusSaque(10L, StatusSaque.CONCLUIDO))
@@ -275,6 +281,10 @@ public class FinanceiroServiceTest {
         assertEquals(new BigDecimal("180.00"), resumo.getSaldoPendente());
         assertEquals(new BigDecimal("50.00"), resumo.getTotalSacado());
         assertEquals(2, resumo.getQuantidadeAulasRealizadas());
+        assertEquals(new BigDecimal("250.00"), resumo.getGanhosMes());
+        assertEquals(2, resumo.getAulasRealizadasMes());
+        assertEquals(1, resumo.getAlunosAtendidosMes());
+        assertEquals(1, resumo.getAulasPendentesMes());
         assertEquals("carlos@orienta.com.br", resumo.getChavePixCadastrada());
         assertEquals(TipoChavePix.EMAIL, resumo.getTipoChavePixCadastrada());
         assertFalse(resumo.getSaqueBloqueado());

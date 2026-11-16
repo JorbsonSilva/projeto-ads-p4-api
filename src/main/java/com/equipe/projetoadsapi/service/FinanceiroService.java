@@ -28,7 +28,9 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +69,31 @@ public class FinanceiroService {
         BigDecimal totalSacadoNoMes = calcularTotalSacadoNoMes(professorId);
 
         Long qtdRealizadas = agendamentoRepository.countByProfessorIdAndStatus(professorId, StatusAgendamento.REALIZADA);
+        YearMonth mesAtual = YearMonth.now();
+        List<Agendamento> aulasMes = agendamentoRepository.findByProfessorIdAndDataBetween(
+                professorId, mesAtual.atDay(1), mesAtual.atEndOfMonth());
+        BigDecimal ganhosMes = BigDecimal.ZERO;
+        int aulasRealizadasMes = 0;
+        int aulasPendentesMes = 0;
+        Set<Long> alunosAtendidosMes = new HashSet<>();
+        if (aulasMes != null) {
+            for (Agendamento aula : aulasMes) {
+                if (aula.getStatus() == StatusAgendamento.REALIZADA) {
+                    aulasRealizadasMes++;
+                    if (aula.getValorAplicado() != null) {
+                        ganhosMes = ganhosMes.add(aula.getValorAplicado());
+                    }
+                    if (aula.getAluno() != null && aula.getAluno().getId() != null) {
+                        alunosAtendidosMes.add(aula.getAluno().getId());
+                    }
+                } else if (aula.getStatus() == StatusAgendamento.PENDENTE
+                        || aula.getStatus() == StatusAgendamento.CONFIRMADO
+                        || aula.getStatus() == StatusAgendamento.EM_ANDAMENTO
+                        || aula.getStatus() == StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
+                    aulasPendentesMes++;
+                }
+            }
+        }
 
         // Identificação da chave PIX cadastrada ou sugerida
         List<Saque> saques = saqueRepository.findByProfessorIdOrderByDataSolicitacaoDesc(professorId);
@@ -120,6 +147,10 @@ public class FinanceiroService {
                 .totalSacado(totalSacado)
                 .totalSacadoNoMes(totalSacadoNoMes)
                 .quantidadeAulasRealizadas(qtdRealizadas != null ? qtdRealizadas.intValue() : 0)
+                .ganhosMes(ganhosMes.setScale(2, RoundingMode.HALF_UP))
+                .aulasRealizadasMes(aulasRealizadasMes)
+                .alunosAtendidosMes(alunosAtendidosMes.size())
+                .aulasPendentesMes(aulasPendentesMes)
                 .chavePixCadastrada(chavePix)
                 .tipoChavePixCadastrada(tipoChavePix)
                 .saqueBloqueado(saqueBloqueado)

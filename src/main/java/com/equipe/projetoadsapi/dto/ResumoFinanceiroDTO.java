@@ -41,6 +41,18 @@ public class ResumoFinanceiroDTO {
     @Builder.Default
     private Integer quantidadeAulasRealizadas = 0;
 
+    @Builder.Default
+    private BigDecimal ganhosMes = BigDecimal.ZERO;
+
+    @Builder.Default
+    private Integer aulasRealizadasMes = 0;
+
+    @Builder.Default
+    private Integer alunosAtendidosMes = 0;
+
+    @Builder.Default
+    private Integer aulasPendentesMes = 0;
+
     private String chavePixCadastrada;
 
     private TipoChavePix tipoChavePixCadastrada;

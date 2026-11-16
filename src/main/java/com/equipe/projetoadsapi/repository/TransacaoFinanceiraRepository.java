@@ -2,6 +2,7 @@ package com.equipe.projetoadsapi.repository;
 
 import com.equipe.projetoadsapi.model.TransacaoFinanceira;
 import com.equipe.projetoadsapi.model.enums.TipoTransacao;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,7 @@ import java.util.Optional;
 @Repository
 public interface TransacaoFinanceiraRepository extends JpaRepository<TransacaoFinanceira, Long> {
 
+    @EntityGraph(attributePaths = {"agendamento.aluno", "agendamento.saber"})
     List<TransacaoFinanceira> findByUsuarioIdOrderByDataTransacaoDesc(Long usuarioId);
 
     List<TransacaoFinanceira> findByUsuarioIdAndTipoTransacao(Long usuarioId, TipoTransacao tipoTransacao);
