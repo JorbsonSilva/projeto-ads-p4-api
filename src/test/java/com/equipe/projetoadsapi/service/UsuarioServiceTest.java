@@ -3,7 +3,9 @@ package com.equipe.projetoadsapi.service;
 import com.equipe.projetoadsapi.dto.AlunoAtendidoDTO;
 import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.model.Agendamento;
+import com.equipe.projetoadsapi.model.Aptidao;
 import com.equipe.projetoadsapi.model.Conversa;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Saber;
 import com.equipe.projetoadsapi.model.SessaoAula;
 import com.equipe.projetoadsapi.model.StatusAgendamento;
@@ -26,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -144,6 +147,43 @@ public class UsuarioServiceTest {
 
         assertNotNull(resultado, "A busca geográfica por Haversine deve retornar lista não-nula");
         verify(localizacaoService, times(1)).normalizarRaio(any());
+    }
+
+    @Test
+    @DisplayName("A busca de professores deve excluir contas sem papel de professor")
+    void deveRetornarSomenteContasComPapelDeProfessor() {
+        when(localizacaoService.normalizarRaio(any())).thenReturn(20);
+
+        Saber saber = new Saber();
+        saber.setId(7L);
+        saber.setNome("Matemática");
+
+        Aptidao aptidaoAluno = new Aptidao();
+        aptidaoAluno.setSaber(saber);
+        aptidaoAluno.setPrecoHora(new BigDecimal("30.00"));
+        Usuario alunoComAptidao = new Usuario();
+        alunoComAptidao.setId(1L);
+        alunoComAptidao.setNome("Aluno");
+        alunoComAptidao.setPapel(PapelUsuario.ROLE_ALUNO);
+        alunoComAptidao.setAptidoes(List.of(aptidaoAluno));
+
+        Aptidao aptidaoProfessor = new Aptidao();
+        aptidaoProfessor.setSaber(saber);
+        aptidaoProfessor.setPrecoHora(new BigDecimal("50.00"));
+        Usuario professor = new Usuario();
+        professor.setId(2L);
+        professor.setNome("Professor");
+        professor.setPapel(PapelUsuario.ROLE_PROFESSOR);
+        professor.setAptidoes(List.of(aptidaoProfessor));
+
+        when(repository.findAll()).thenReturn(List.of(alunoComAptidao, professor));
+
+        var resultado = usuarioService.buscarProfessoresAvancado(
+                null, "TODAS", null, null, null, null, 20, null
+        );
+
+        assertEquals(1, resultado.size());
+        assertEquals(2L, resultado.get(0).getId());
     }
 
     /**

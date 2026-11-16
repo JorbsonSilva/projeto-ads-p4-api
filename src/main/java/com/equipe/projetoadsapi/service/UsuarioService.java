@@ -20,6 +20,7 @@ import com.equipe.projetoadsapi.model.Aptidao;
 import com.equipe.projetoadsapi.model.Conversa;
 import com.equipe.projetoadsapi.model.Disponibilidade;
 import com.equipe.projetoadsapi.model.Interesse;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Saber;
 import com.equipe.projetoadsapi.model.StatusAgendamento;
 import com.equipe.projetoadsapi.model.Usuario;
@@ -481,6 +482,8 @@ public class UsuarioService {
         java.util.List<ItemComDistancia> listaFiltrada = new java.util.ArrayList<>();
 
         java.util.List<Usuario> todosProfessores = repository.findAll().stream()
+                .filter(u -> u.getPapel() == PapelUsuario.ROLE_PROFESSOR
+                        || u.possuiPapel(PapelUsuario.ROLE_PROFESSOR))
                 .filter(u -> u.getAptidoes() != null && !u.getAptidoes().isEmpty())
                 .collect(java.util.stream.Collectors.toList());
 
