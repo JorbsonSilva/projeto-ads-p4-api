@@ -132,6 +132,49 @@ public class UsuarioServiceTest {
         verify(passwordEncoder, never()).encode(any());
     }
 
+    @Test
+    @DisplayName("Deve salvar nova senha codificada após validar a senha atual")
+    void deveAlterarSenhaComSucesso() {
+        when(repository.findById(1L)).thenReturn(Optional.of(usuarioExemplo));
+        when(passwordEncoder.matches("senha123", "senha123")).thenReturn(true);
+        when(passwordEncoder.encode("novaSenha123")).thenReturn("$2a$10$novaSenhaHash");
+
+        usuarioService.alterarSenha(1L, java.util.Map.of(
+                "senhaAtual", "senha123",
+                "novaSenha", "novaSenha123"
+        ));
+
+        assertEquals("$2a$10$novaSenhaHash", usuarioExemplo.getSenha());
+        verify(repository).save(usuarioExemplo);
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar nova senha menor que 8 caracteres")
+    void deveRejeitarSenhaNovaCurta() {
+        when(repository.findById(1L)).thenReturn(Optional.of(usuarioExemplo));
+
+        assertThrows(RegraNegocioException.class, () -> usuarioService.alterarSenha(
+                1L,
+                java.util.Map.of("senhaAtual", "senha123", "novaSenha", "curta")
+        ));
+
+        verify(repository, never()).save(any(Usuario.class));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar alteração quando a senha atual estiver incorreta")
+    void deveRejeitarSenhaAtualIncorreta() {
+        when(repository.findById(1L)).thenReturn(Optional.of(usuarioExemplo));
+        when(passwordEncoder.matches("senhaErrada", "senha123")).thenReturn(false);
+
+        assertThrows(RegraNegocioException.class, () -> usuarioService.alterarSenha(
+                1L,
+                java.util.Map.of("senhaAtual", "senhaErrada", "novaSenha", "novaSenha123")
+        ));
+
+        verify(repository, never()).save(any(Usuario.class));
+    }
+
     /**
      * TESTE 4: Garantia de Não-Regressão do Haversine (Linhas 440-570 preservadas).
      */

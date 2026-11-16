@@ -295,12 +295,27 @@ public class UsuarioService {
         Usuario usuarioBD = repository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id));
 
+        if (senhas == null) {
+            throw new RegraNegocioException("Informe a senha atual e a nova senha.");
+        }
         String senhaAtualDigitada = senhas.get("senhaAtual");
         String novaSenhaDigitada  = senhas.get("novaSenha");
 
-        // Valida se a senha atual confere (seja BCrypt ou legado)
-        boolean confere = passwordEncoder.matches(senhaAtualDigitada, usuarioBD.getSenha()) ||
-                          usuarioBD.getSenha().equals(senhaAtualDigitada);
+        if (senhaAtualDigitada == null || senhaAtualDigitada.isBlank()
+                || novaSenhaDigitada == null || novaSenhaDigitada.isBlank()) {
+            throw new RegraNegocioException("Informe a senha atual e a nova senha.");
+        }
+        if (novaSenhaDigitada.length() < 8) {
+            throw new RegraNegocioException("A nova senha deve ter pelo menos 8 caracteres.");
+        }
+        if (senhaAtualDigitada.equals(novaSenhaDigitada)) {
+            throw new RegraNegocioException("A nova senha deve ser diferente da senha atual.");
+        }
+
+        String senhaArmazenada = usuarioBD.getSenha();
+        boolean confere = senhaArmazenada != null
+                && (passwordEncoder.matches(senhaAtualDigitada, senhaArmazenada)
+                || senhaArmazenada.equals(senhaAtualDigitada));
 
         if (!confere) {
             throw new RegraNegocioException("A senha atual informada está incorreta.");

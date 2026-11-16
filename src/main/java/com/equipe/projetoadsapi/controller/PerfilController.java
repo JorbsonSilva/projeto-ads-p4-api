@@ -126,9 +126,9 @@ public class PerfilController {
         usuarioRepository.save(usuario);
 
         // Atualização de matérias de interesse (se enviadas)
-        if (dto.getInteresses() != null) {
+        if (dto.getInteressesNomes() != null) {
             interesseRepository.deleteByUsuarioId(id);
-            for (String nomeMateria : dto.getInteresses()) {
+            for (String nomeMateria : dto.getInteressesNomes()) {
                 if (nomeMateria == null || nomeMateria.isBlank()) continue;
                 String materiaLimpa = nomeMateria.trim();
                 Saber saber = saberRepository.findByNome(materiaLimpa)
