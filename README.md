@@ -24,14 +24,17 @@ Garantir que a API esteja 100% testada, com script de reset de banco rápido (15
 
 3. Iniciar API local com dados sintéticos de desenvolvimento:
    ```bash
+   # Primeiro, iniciar PostgreSQL e Mailpit locais:
+   docker compose up -d postgres mailpit
+
    # Linux/macOS:
-   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+   ./mvnw spring-boot:run
 
    # Windows (PowerShell):
-   .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
+   .\mvnw.cmd spring-boot:run
    ```
 
-O perfil `dev` aplica uma migração Flyway para criar/verificar 500 contas sintéticas adicionais, cada uma com os papéis de aluno e professor, interesses, disciplinas ensinadas, preços e disponibilidades. O seed é idempotente e não roda nos outros perfis. Cada clone recebe o mesmo conjunto em seu próprio banco local; isso não configura um banco remoto compartilhado.
+O `spring-boot:run` ativa o perfil `dev` por padrão, que aplica uma migração Flyway para criar/verificar 500 contas sintéticas adicionais, cada uma com os papéis de aluno e professor, interesses, disciplinas ensinadas, preços e disponibilidades. O seed é idempotente e não roda ao executar o JAR fora desse comando. Cada clone recebe o mesmo conjunto em seu próprio banco local; isso não configura um banco remoto compartilhado.
 
 Contas sintéticas locais usam o e-mail `demo.usuario.001@orienta.test` até `demo.usuario.500@orienta.test` e a senha de desenvolvimento `DemoLocal@2026!`. Use essas credenciais somente no ambiente local.
 
