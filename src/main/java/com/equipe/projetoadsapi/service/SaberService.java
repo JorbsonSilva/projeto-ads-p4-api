@@ -1,11 +1,15 @@
 package com.equipe.projetoadsapi.service;
 
-import java.util.List;
+import com.equipe.projetoadsapi.dto.CategoriaPopularDTO;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.equipe.projetoadsapi.model.Saber;
 import com.equipe.projetoadsapi.repository.SaberRepository;
+
+import java.util.List;
 
 /**
  * SERVIÇO DE SABERES (Catálogo)
@@ -21,5 +25,9 @@ public class SaberService {
 
     public List<Saber> listarTodos() {
         return repository.findAll(); // Puxa todas as matérias cadastradas no Seeding
+    }
+
+    public List<CategoriaPopularDTO> listarCategoriasPopulares() {
+        return repository.findCategoriasMaisEnsinadas(PapelUsuario.ROLE_PROFESSOR, PageRequest.of(0, 10));
     }
 }

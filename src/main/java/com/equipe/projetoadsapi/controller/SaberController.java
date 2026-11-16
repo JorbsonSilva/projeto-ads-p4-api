@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.ApiResponse;
+import com.equipe.projetoadsapi.dto.CategoriaPopularDTO;
 import com.equipe.projetoadsapi.model.Saber;
 import com.equipe.projetoadsapi.service.SaberService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,5 +31,12 @@ public class SaberController {
     public ResponseEntity<ApiResponse<List<Saber>>> listarSaberes() {
         List<Saber> lista = service.listarTodos();
         return ResponseEntity.ok(ApiResponse.ok(lista, "Catálogo de saberes recuperado com sucesso"));
+    }
+
+    @Operation(summary = "Listar as 10 categorias mais populares", description = "Ordena as categorias pela quantidade de professores que ensinam disciplinas daquela categoria.")
+    @GetMapping("/categorias-populares")
+    public ResponseEntity<ApiResponse<List<CategoriaPopularDTO>>> listarCategoriasPopulares() {
+        List<CategoriaPopularDTO> categorias = service.listarCategoriasPopulares();
+        return ResponseEntity.ok(ApiResponse.ok(categorias, "Categorias populares recuperadas com sucesso"));
     }
 }
