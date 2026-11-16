@@ -102,7 +102,10 @@ public class LocalizacaoEHaversineTest {
                 .longitudeAproximada(-34.951110)
                 .build();
 
-        Saber saber = new Saber(1L, "Cálculo I", "Matemática");
+        Saber saber = new Saber();
+        saber.setId(1L);
+        saber.setNome("Cálculo I");
+        saber.setCategoria("Matemática");
         
         // A utilização de instanciacão vazia com setters previne erros de ordem no construtor
         // e garante a passagem correta do valor monetário como BigDecimal.

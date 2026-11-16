@@ -15,13 +15,25 @@ Garantir que a API esteja 100% testada, com script de reset de banco rápido (15
 
 2. Executar testes de integração do fluxo completo:
    ```bash
-   mvn test -Dtest=BancaFlowIntegrationTest
+   # Linux/macOS:
+   ./mvnw test -Dtest=BancaFlowIntegrationTest
+
+   # Windows (PowerShell):
+   .\mvnw.cmd test -Dtest=BancaFlowIntegrationTest
    ```
 
-3. Iniciar API local em modo apresentação:
+3. Iniciar API local com dados sintéticos de desenvolvimento:
    ```bash
-   mvn spring-boot:run
+   # Linux/macOS:
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+
+   # Windows (PowerShell):
+   .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
    ```
+
+O perfil `dev` aplica uma migração Flyway para criar/verificar 500 contas sintéticas adicionais, cada uma com os papéis de aluno e professor, interesses, disciplinas ensinadas, preços e disponibilidades. O seed é idempotente e não roda nos outros perfis. Cada clone recebe o mesmo conjunto em seu próprio banco local; isso não configura um banco remoto compartilhado.
+
+Contas sintéticas locais usam o e-mail `demo.usuario.001@orienta.test` até `demo.usuario.500@orienta.test` e a senha de desenvolvimento `DemoLocal@2026!`. Use essas credenciais somente no ambiente local.
 
 ## 👥 Contas Prontas para a Apresentação
 - **Aluno**: `aluno.banca@orienta.edu.br` / `Senha@123`

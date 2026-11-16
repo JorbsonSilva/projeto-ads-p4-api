@@ -119,7 +119,10 @@ public class LocalizacaoServiceTest {
                 .longitudeAproximada(-34.8250)
                 .build();
 
-        Saber saber = new Saber(5L, "Geometria Analítica", "Matemática");
+        Saber saber = new Saber();
+        saber.setId(5L);
+        saber.setNome("Geometria Analítica");
+        saber.setCategoria("Matemática");
         Aptidao apt = new Aptidao();
         apt.setId(1L);
         apt.setUsuario(prof);

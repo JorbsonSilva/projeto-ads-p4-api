@@ -5,6 +5,7 @@ import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
 import com.equipe.projetoadsapi.model.Aptidao;
 import com.equipe.projetoadsapi.model.Disponibilidade;
 import com.equipe.projetoadsapi.model.Interesse;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Usuario;
 import com.equipe.projetoadsapi.repository.AptidaoRepository;
 import com.equipe.projetoadsapi.repository.DisponibilidadeRepository;
@@ -116,6 +117,30 @@ public class UsuarioController {
             throw new RecursoNaoEncontradoException("Usuário não encontrado com ID: " + id);
         }
         return ResponseEntity.ok(ApiResponse.ok(UsuarioResponseDTO.fromEntity(usuarioEncontrado)));
+    }
+
+    @Operation(
+            summary = "Obter perfil público de professor",
+            description = "Retorna apenas dados profissionais e de atendimento, sem informações pessoais privadas."
+    )
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/professores/{id}/perfil-publico")
+    public ResponseEntity<ApiResponse<PerfilProfessorPublicoDTO>> obterPerfilPublicoProfessor(
+            @PathVariable Long id
+    ) {
+        Usuario professor = service.buscarPorId(id);
+        if (professor == null
+                || (!professor.possuiPapel(PapelUsuario.ROLE_PROFESSOR)
+                && professor.getPapel() != PapelUsuario.ROLE_PROFESSOR)) {
+            throw new RecursoNaoEncontradoException("Perfil de professor não encontrado.");
+        }
+
+        List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
+        List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+        PerfilProfessorPublicoDTO dto = PerfilProfessorPublicoDTO.fromEntities(
+                professor, aptidoes, disponibilidades
+        );
+        return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil público do professor recuperado com sucesso"));
     }
 
     @Operation(summary = "Perfil Completo Consolidado", description = "Retorna dados cadastrais, biografia e saberes/interesses do usuário autenticado. Bloqueia acesso a dados de terceiros por ID Spoofing.")

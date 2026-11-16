@@ -121,6 +121,49 @@ public class UsuarioControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar o perfil público do professor sem expor dados pessoais")
+    void deveRetornarPerfilPublicoDoProfessor() throws Exception {
+        Usuario professor = new Usuario();
+        professor.setId(3L);
+        professor.setNome("Ana Professora");
+        professor.setEmail("ana@example.com");
+        professor.setCpf("12345678900");
+        professor.setTelefone("11999999999");
+        professor.setPapel(PapelUsuario.ROLE_PROFESSOR);
+        professor.setCidade("João Pessoa");
+        professor.setEstado("PB");
+        professor.setBioProfessor("Aulas de matemática");
+        professor.setEmailVerificado(true);
+        professor.setAceitaOnline(true);
+        professor.setPrecoHoraOnline(new BigDecimal("75.00"));
+
+        Saber saber = new Saber();
+        saber.setId(10L);
+        saber.setNome("Matemática");
+
+        Aptidao aptidao = new Aptidao();
+        aptidao.setSaber(saber);
+        aptidao.setNivelDominio("Avançado");
+        aptidao.setPrecoHora(new BigDecimal("75.00"));
+
+        when(usuarioService.buscarPorId(3L)).thenReturn(professor);
+        when(aptidaoRepository.findByUsuarioId(3L)).thenReturn(List.of(aptidao));
+        when(disponibilidadeRepository.findByUsuarioId(3L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/usuarios/professores/3/perfil-publico"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(3))
+                .andExpect(jsonPath("$.data.nome").value("Ana Professora"))
+                .andExpect(jsonPath("$.data.bioProfessor").value("Aulas de matemática"))
+                .andExpect(jsonPath("$.data.precoHoraOnline").value(75.0))
+                .andExpect(jsonPath("$.data.aptidoes[0].nome").value("Matemática"))
+                .andExpect(jsonPath("$.data.email").doesNotExist())
+                .andExpect(jsonPath("$.data.cpf").doesNotExist())
+                .andExpect(jsonPath("$.data.telefone").doesNotExist());
+    }
+
+    @Test
     @DisplayName("Deve atualizar perfil de aluno via /usuarios/{id}/aluno e retornar PerfilCompletoDTO")
     void deveAtualizarPerfilAlunoComSucesso() throws Exception {
         Usuario usuario = new Usuario();
