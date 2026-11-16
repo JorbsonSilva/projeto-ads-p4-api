@@ -2,6 +2,7 @@ package com.equipe.projetoadsapi.service;
 
 import com.equipe.projetoadsapi.dto.AvaliacaoRequestDTO;
 import com.equipe.projetoadsapi.dto.AvaliacaoResponseDTO;
+import com.equipe.projetoadsapi.dto.AulaPendenteAvaliacaoDTO;
 import com.equipe.projetoadsapi.dto.SessaoAulaDTO;
 import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
 import com.equipe.projetoadsapi.exception.RegraNegocioException;
@@ -104,6 +105,42 @@ public class AulaServiceTest {
                 .hora(LocalTime.of(16, 0))
                 .status(StatusAgendamento.PENDENTE)
                 .build();
+    }
+
+    @Test
+    @DisplayName("Deve listar somente aulas realizadas ainda não avaliadas pelo aluno")
+    void deveListarAulasPendentesDeAvaliacao() {
+        Agendamento aulaAvaliada = Agendamento.builder()
+                .id(102L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(LocalDate.now().minusDays(1))
+                .hora(LocalTime.of(14, 0))
+                .status(StatusAgendamento.REALIZADA)
+                .build();
+        Agendamento aulaPendente = Agendamento.builder()
+                .id(103L)
+                .aluno(aluno)
+                .professor(professor)
+                .data(LocalDate.now().minusDays(2))
+                .hora(LocalTime.of(16, 0))
+                .status(StatusAgendamento.REALIZADA)
+                .build();
+
+        when(agendamentoRepository.findByAlunoIdAndStatusOrderByDataDescHoraDesc(
+                1L, StatusAgendamento.REALIZADA))
+                .thenReturn(java.util.List.of(aulaAvaliada, aulaPendente));
+        when(avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(102L, 1L)).thenReturn(true);
+        when(avaliacaoRepository.existsByAgendamentoIdAndAvaliadorId(103L, 1L)).thenReturn(false);
+
+        java.util.List<AulaPendenteAvaliacaoDTO> resultado =
+                aulaService.listarAulasPendentesAvaliacao(1L);
+
+        assertEquals(1, resultado.size());
+        assertEquals(103L, resultado.get(0).getAgendamentoId());
+        assertEquals("Prof. Ricardo Santos", resultado.get(0).getProfessorNome());
+        verify(avaliacaoRepository).existsByAgendamentoIdAndAvaliadorId(102L, 1L);
+        verify(avaliacaoRepository).existsByAgendamentoIdAndAvaliadorId(103L, 1L);
     }
 
     @Test

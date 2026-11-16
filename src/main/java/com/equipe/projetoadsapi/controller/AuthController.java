@@ -1,6 +1,8 @@
 package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.dto.*;
+import com.equipe.projetoadsapi.exception.RegraNegocioException;
+import com.equipe.projetoadsapi.security.SecurityUtils;
 import com.equipe.projetoadsapi.model.Usuario;
 import com.equipe.projetoadsapi.security.JwtAuthenticationFilter;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
@@ -66,6 +68,20 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponseDTO>> refresh(@Valid @RequestBody RefreshTokenRequestDTO request) {
         AuthResponseDTO response = authService.renovarToken(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.ok(response, "Token renovado com sucesso"));
+    }
+
+    @Operation(summary = "Ativar ou trocar perfil", description = "Ativa o perfil de aluno ou professor para a conta autenticada e emite um token com a permissão selecionada.")
+    @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ALUNO', 'PROFESSOR')")
+    @PostMapping("/papel")
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> trocarPapel(
+            @Valid @RequestBody TrocarPapelRequestDTO request) {
+        Long usuarioId = SecurityUtils.getUsuarioAutenticadoId();
+        if (usuarioId == null) {
+            throw new RegraNegocioException("Usuário autenticado não identificado.");
+        }
+        AuthResponseDTO response = authService.trocarPapel(usuarioId, request.getPapel());
+        return ResponseEntity.ok(ApiResponse.ok(response, "Perfil ativado com sucesso"));
     }
 
     /**

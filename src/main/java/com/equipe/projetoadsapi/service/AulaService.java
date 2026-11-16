@@ -38,6 +38,17 @@ public class AulaService {
     @Autowired(required = false)
     private FinanceiroService financeiroService;
 
+    @Transactional(readOnly = true)
+    public List<AulaPendenteAvaliacaoDTO> listarAulasPendentesAvaliacao(Long alunoId) {
+        return agendamentoRepository
+                .findByAlunoIdAndStatusOrderByDataDescHoraDesc(alunoId, StatusAgendamento.REALIZADA)
+                .stream()
+                .filter(agendamento -> !avaliacaoRepository
+                        .existsByAgendamentoIdAndAvaliadorId(agendamento.getId(), alunoId))
+                .map(AulaPendenteAvaliacaoDTO::fromEntity)
+                .toList();
+    }
+
     @Transactional
     public SessaoAulaDTO obterOuCriarSessao(Long agendamentoId) {
         Agendamento agendamento = agendamentoRepository.findById(agendamentoId)

@@ -6,6 +6,7 @@ import com.equipe.projetoadsapi.dto.UsuarioResponseDTO;
 import com.equipe.projetoadsapi.exception.RegraNegocioException;
 import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
 import com.equipe.projetoadsapi.repository.UsuarioRepository;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
 import com.equipe.projetoadsapi.security.LegacyPasswordMigrationService;
@@ -101,6 +102,30 @@ public class AuthService {
 
         return AuthResponseDTO.builder()
                 .token(novoAccessToken)
+                .refreshToken(refreshToken)
+                .tipoToken("Bearer")
+                .expiresIn(tokenProvider.getJwtExpirationMs() / 1000)
+                .usuario(UsuarioResponseDTO.fromEntity(usuario))
+                .build();
+    }
+
+    @Transactional
+    public AuthResponseDTO trocarPapel(Long usuarioId, PapelUsuario papel) {
+        if (papel == null || papel == PapelUsuario.ROLE_ADMIN) {
+            throw new RegraNegocioException("O perfil solicitado não pode ser ativado.");
+        }
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+        usuario.adicionarPapel(papel);
+        usuario.setPapel(papel);
+        usuarioRepository.save(usuario);
+
+        String accessToken = tokenProvider.gerarAccessToken(usuario.getId(), usuario.getEmail(), papel.name());
+        String refreshToken = tokenProvider.gerarRefreshToken(usuario.getId(), usuario.getEmail());
+
+        return AuthResponseDTO.builder()
+                .token(accessToken)
                 .refreshToken(refreshToken)
                 .tipoToken("Bearer")
                 .expiresIn(tokenProvider.getJwtExpirationMs() / 1000)

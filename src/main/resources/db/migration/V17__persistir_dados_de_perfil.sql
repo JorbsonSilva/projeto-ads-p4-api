@@ -1,0 +1,18 @@
+ALTER TABLE tb_usuarios
+    ADD COLUMN IF NOT EXISTS telefone VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS cidade VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS estado VARCHAR(2),
+    ADD COLUMN IF NOT EXISTS titulacao VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS preco_hora_online NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS preco_hora_presencial NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS chave_pix VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS tipo_chave_pix VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS banco VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS aceita_online BOOLEAN;
+
+ALTER TABLE tb_usuarios
+    ALTER COLUMN nota_media DROP DEFAULT;
+
+UPDATE tb_usuarios
+SET nota_media = NULL
+WHERE COALESCE(total_avaliacoes, 0) = 0;

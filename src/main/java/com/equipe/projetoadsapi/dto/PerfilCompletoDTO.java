@@ -178,10 +178,10 @@ public class PerfilCompletoDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ConfiguracoesEnsinoDocenteDTO {
-        private double precoHoraOnline;
-        private double precoHoraPresencial;
-        private boolean aceitaOnline;
-        private boolean aceitaPresencial;
+        private Double precoHoraOnline;
+        private Double precoHoraPresencial;
+        private Boolean aceitaOnline;
+        private Boolean aceitaPresencial;
         private String chavePix;
         private String tipoChavePix;
         private String banco;
@@ -243,7 +243,7 @@ public class PerfilCompletoDTO {
         }
 
         if (precoPadrao == null) {
-            precoPadrao = BigDecimal.valueOf(60.00);
+            precoPadrao = usuario.getPrecoHoraOnline();
         }
 
         List<DisponibilidadeItemDTO> itensDisp = new ArrayList<>();
@@ -266,26 +266,26 @@ public class PerfilCompletoDTO {
                 : (usuario.getBioAluno() != null ? usuario.getBioAluno() : usuario.getBioProfessor());
 
         ProgressoAlunoDTO progressoDTO = ProgressoAlunoDTO.builder()
-                .materiasCursando(itensInteresse.size() > 0 ? itensInteresse.size() : 7)
-                .mentoriasRealizadas(12)
-                .horasAcumuladas(45)
+                .materiasCursando(itensInteresse.size())
+                .mentoriasRealizadas(0)
+                .horasAcumuladas(0)
                 .build();
 
         ResumoMesDocenteDTO resumoMesDTO = ResumoMesDocenteDTO.builder()
-                .aulasRealizadas(24)
-                .alunosAtendidos(38)
-                .horasMinistradas(36)
-                .ganhosMes(2480.00)
+                .aulasRealizadas(0)
+                .alunosAtendidos(0)
+                .horasMinistradas(0)
+                .ganhosMes(0)
                 .build();
 
         ConfiguracoesEnsinoDocenteDTO configuracoesEnsinoDTO = ConfiguracoesEnsinoDocenteDTO.builder()
-                .precoHoraOnline(precoPadrao.doubleValue())
-                .precoHoraPresencial(precoPadrao.doubleValue() + 20.00)
-                .aceitaOnline(true)
+                .precoHoraOnline(usuario.getPrecoHoraOnline() != null ? usuario.getPrecoHoraOnline().doubleValue() : null)
+                .precoHoraPresencial(usuario.getPrecoHoraPresencial() != null ? usuario.getPrecoHoraPresencial().doubleValue() : null)
+                .aceitaOnline(usuario.getAceitaOnline())
                 .aceitaPresencial(Boolean.TRUE.equals(usuario.getOferecePresencial()))
-                .chavePix(usuario.getEmail())
-                .tipoChavePix("EMAIL")
-                .banco("Banco do Brasil - Ag 1234 CC 56789-0")
+                .chavePix(usuario.getChavePix())
+                .tipoChavePix(usuario.getTipoChavePix())
+                .banco(usuario.getBanco())
                 .build();
 
         return PerfilCompletoDTO.builder()
@@ -293,23 +293,23 @@ public class PerfilCompletoDTO {
                 .nome(usuario.getNome())
                 .email(usuario.getEmail())
                 .cpf(usuario.getCpf())
-                .telefone("(83) 98765-4321")
-                .cidade(isProfessor ? "Campina Grande" : "João Pessoa")
-                .estado("PB")
+                .telefone(usuario.getTelefone())
+                .cidade(usuario.getCidade())
+                .estado(usuario.getEstado())
                 .tipo(tipoNormalizado)
                 .papel(usuario.getPapel() != null ? usuario.getPapel().name() : "ROLE_" + tipoNormalizado)
                 .fotoUrl(usuario.getFotoUrl() != null ? usuario.getFotoUrl() : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80")
                 .bio(bioContextual)
                 .bioAluno(usuario.getBioAluno())
                 .bioProfessor(usuario.getBioProfessor())
-                .titulacao("Mestre em Ciência da Computação • UFCG")
+                .titulacao(usuario.getTitulacao())
                 .dataNascimento(usuario.getDataNascimento())
                 .emailVerificado(usuario.getEmailVerificado())
-                .notaMedia(usuario.getNotaMedia() != null ? usuario.getNotaMedia() : 5.0)
+                .notaMedia(usuario.getNotaMedia())
                 .totalAvaliacoes(usuario.getTotalAvaliacoes() != null ? usuario.getTotalAvaliacoes() : 0)
                 .oferecePresencial(usuario.getOferecePresencial())
                 .regiaoAtendimento(usuario.getRegiaoAtendimento())
-                .raioAtendimentoKm(usuario.getRaioAtendimentoKm() != null ? usuario.getRaioAtendimentoKm() : 10)
+                .raioAtendimentoKm(usuario.getRaioAtendimentoKm())
                 .precoHoraPadrao(precoPadrao)
                 .interesses(itensInteresse)
                 .aptidoes(itensAptidao)

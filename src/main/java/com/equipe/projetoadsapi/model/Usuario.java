@@ -6,6 +6,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.Builder;
+import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * ENTIDADE USUÁRIO (Mapeamento Objeto-Relacional)
@@ -43,6 +46,14 @@ public class Usuario {
     @Column(name = "papel", length = 30)
     private PapelUsuario papel = PapelUsuario.ROLE_ALUNO;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "tb_usuario_papeis", joinColumns = @JoinColumn(name = "usuario_id"))
+    @Column(name = "papel", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Set<PapelUsuario> papeis = new HashSet<>();
+
     @Builder.Default
     @Column(name = "email_verificado")
     private Boolean emailVerificado = false;
@@ -53,6 +64,36 @@ public class Usuario {
     @Column(name = "data_nascimento", length = 10)
     private String dataNascimento;
 
+    @Column(name = "telefone", length = 30)
+    private String telefone;
+
+    @Column(name = "cidade", length = 100)
+    private String cidade;
+
+    @Column(name = "estado", length = 2)
+    private String estado;
+
+    @Column(name = "titulacao", length = 200)
+    private String titulacao;
+
+    @Column(name = "preco_hora_online", precision = 10, scale = 2)
+    private BigDecimal precoHoraOnline;
+
+    @Column(name = "preco_hora_presencial", precision = 10, scale = 2)
+    private BigDecimal precoHoraPresencial;
+
+    @Column(name = "chave_pix", length = 255)
+    private String chavePix;
+
+    @Column(name = "tipo_chave_pix", length = 30)
+    private String tipoChavePix;
+
+    @Column(name = "banco", length = 120)
+    private String banco;
+
+    @Column(name = "aceita_online")
+    private Boolean aceitaOnline;
+
     @Column(name = "bio_aluno", columnDefinition = "TEXT")
     private String bioAluno;
 
@@ -62,9 +103,8 @@ public class Usuario {
     @Column(name = "foto_url", length = 1000)
     private String fotoUrl;
 
-    @Builder.Default
     @Column(name = "nota_media", columnDefinition = "numeric")
-    private Double notaMedia = 5.0; // Professor recém-cadastrado começa com 5 estrelas
+    private Double notaMedia;
 
     @Builder.Default
     @Column(name = "total_avaliacoes")
@@ -110,6 +150,21 @@ public class Usuario {
         return papel != null ? papel.name().replace("ROLE_", "") : "ALUNO";
     }
 
+    public void setPapel(PapelUsuario papel) {
+        this.papel = papel;
+        adicionarPapel(papel);
+    }
+
+    public void adicionarPapel(PapelUsuario papel) {
+        if (papel == null) return;
+        if (papeis == null) papeis = new HashSet<>();
+        papeis.add(papel);
+    }
+
+    public boolean possuiPapel(PapelUsuario papel) {
+        return papel != null && papeis != null && papeis.contains(papel);
+    }
+
     public void setTipo(String tipo) {
         if (tipo == null) return;
         String normalizado = tipo.toUpperCase();
@@ -117,9 +172,15 @@ public class Usuario {
             normalizado = "ROLE_" + normalizado;
         }
         try {
-            this.papel = PapelUsuario.valueOf(normalizado);
+            setPapel(PapelUsuario.valueOf(normalizado));
         } catch (IllegalArgumentException e) {
-            this.papel = PapelUsuario.ROLE_ALUNO;
+            setPapel(PapelUsuario.ROLE_ALUNO);
         }
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void garantirPapelAtivoEntreOsPapeisDaConta() {
+        adicionarPapel(papel);
     }
 }

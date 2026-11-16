@@ -32,6 +32,20 @@ public class AulaController {
     @Autowired
     private ResourceOwnershipService ownershipService;
 
+    @Operation(summary = "Listar aulas pendentes de avaliação", description = "Retorna as aulas concluídas do aluno autenticado que ainda não foram avaliadas.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ALUNO')")
+    @GetMapping("/pendentes-avaliacao")
+    public ResponseEntity<ApiResponse<java.util.List<AulaPendenteAvaliacaoDTO>>> listarPendentesAvaliacao() {
+        Long alunoId = SecurityUtils.getUsuarioAutenticadoId();
+        if (alunoId == null) {
+            throw new RegraNegocioException("Usuário autenticado não identificado.");
+        }
+        ownershipService.validarAcessoAluno(alunoId);
+        return ResponseEntity.ok(ApiResponse.ok(
+                aulaService.listarAulasPendentesAvaliacao(alunoId),
+                "Aulas pendentes de avaliação recuperadas com sucesso"));
+    }
+
     @Operation(summary = "Obter status da sessão ao vivo", description = "Retorna o estado oficial da sessão sincronizado com o relógio do servidor.")
     @GetMapping("/{agendamentoId}/sessao")
     public ResponseEntity<ApiResponse<SessaoAulaDTO>> obterSessao(@PathVariable Long agendamentoId) {

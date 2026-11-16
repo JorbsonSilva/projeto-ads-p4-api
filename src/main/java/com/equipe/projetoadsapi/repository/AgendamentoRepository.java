@@ -37,6 +37,7 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
     boolean existsByProfessorAndDataAndHora(Usuario professor, LocalDate data, LocalTime hora);
 
     List<Agendamento> findByAlunoOrderByDataAscHoraAsc(Usuario aluno);
+    List<Agendamento> findByAlunoIdAndStatusOrderByDataDescHoraDesc(Long alunoId, StatusAgendamento status);
     List<Agendamento> findByProfessorOrderByDataAscHoraAsc(Usuario professor);
 
     List<Agendamento> findByAluno(Usuario aluno);

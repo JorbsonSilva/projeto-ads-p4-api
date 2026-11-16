@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.security;
 
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,5 +26,24 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("Usuário não encontrado com e-mail: " + email);
         }
         return new UsuarioDetails(usuario);
+    }
+
+    public UserDetails loadUserByUsernameAndRole(String email, String roleName) throws UsernameNotFoundException {
+        Usuario usuario = usuarioRepository.findByEmail(email);
+        if (usuario == null) {
+            throw new UsernameNotFoundException("Usuário não encontrado com e-mail: " + email);
+        }
+
+        PapelUsuario papel;
+        try {
+            papel = PapelUsuario.valueOf(roleName);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new UsernameNotFoundException("Papel inválido no token.");
+        }
+
+        if (!usuario.possuiPapel(papel)) {
+            throw new UsernameNotFoundException("O usuário não possui o papel informado no token.");
+        }
+        return new UsuarioDetails(usuario, papel);
     }
 }

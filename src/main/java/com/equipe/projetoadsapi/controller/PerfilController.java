@@ -122,9 +122,7 @@ public class PerfilController {
         if (dto.getDataNascimentoEfetiva() != null && !dto.getDataNascimentoEfetiva().isBlank()) {
             usuario.setDataNascimento(dto.getDataNascimentoEfetiva().trim());
         }
-        if (dto.getFotoUrl() != null && !dto.getFotoUrl().isBlank()) {
-            usuario.setFotoUrl(dto.getFotoUrl().trim());
-        }
+        atualizarDadosComplementares(usuario, dto);
         usuarioRepository.save(usuario);
 
         // Atualização de matérias de interesse (se enviadas)
@@ -176,9 +174,7 @@ public class PerfilController {
         if (dto.getDataNascimentoEfetiva() != null && !dto.getDataNascimentoEfetiva().isBlank()) {
             usuario.setDataNascimento(dto.getDataNascimentoEfetiva().trim());
         }
-        if (dto.getFotoUrl() != null && !dto.getFotoUrl().isBlank()) {
-            usuario.setFotoUrl(dto.getFotoUrl().trim());
-        }
+        atualizarDadosComplementares(usuario, dto);
         if (dto.getOferecePresencial() != null) {
             usuario.setOferecePresencial(dto.getOferecePresencial());
         }
@@ -209,8 +205,8 @@ public class PerfilController {
                 Aptidao aptidao = new Aptidao();
                 aptidao.setUsuario(usuario);
                 aptidao.setSaber(saber);
-                aptidao.setNivelDominio(item.getNivelDominio() != null ? item.getNivelDominio() : "Avançado");
-                aptidao.setPrecoHora(item.getPreco() != null ? item.getPreco() : java.math.BigDecimal.valueOf(60.00));
+                aptidao.setNivelDominio(item.getNivelDominio());
+                aptidao.setPrecoHora(item.getPreco());
                 aptidaoRepository.save(aptidao);
             }
         }
@@ -239,5 +235,21 @@ public class PerfilController {
 
         PerfilCompletoDTO completo = PerfilCompletoDTO.fromEntities(usuario, interesses, aptidoes, disponibilidades);
         return ResponseEntity.ok(ApiResponse.ok(completo, "Perfil do professor atualizado com sucesso!"));
+    }
+
+    private void atualizarDadosComplementares(Usuario usuario, PerfilAtualizacaoDTO dto) {
+        if (dto.getFotoUrl() != null) usuario.setFotoUrl(dto.getFotoUrl().trim());
+        if (dto.getTelefone() != null) usuario.setTelefone(dto.getTelefone().trim());
+        if (dto.getCidade() != null) usuario.setCidade(dto.getCidade().trim());
+        if (dto.getEstado() != null) usuario.setEstado(dto.getEstado().trim());
+        if (dto.getTitulacao() != null) usuario.setTitulacao(dto.getTitulacao().trim());
+        if (dto.getPrecoHoraOnline() != null || dto.getPrecoHora() != null) {
+            usuario.setPrecoHoraOnline(dto.getPrecoHoraOnline() != null ? dto.getPrecoHoraOnline() : dto.getPrecoHora());
+        }
+        if (dto.getPrecoHoraPresencial() != null) usuario.setPrecoHoraPresencial(dto.getPrecoHoraPresencial());
+        if (dto.getAceitaOnline() != null) usuario.setAceitaOnline(dto.getAceitaOnline());
+        if (dto.getChavePix() != null) usuario.setChavePix(dto.getChavePix().trim());
+        if (dto.getTipoChavePix() != null) usuario.setTipoChavePix(dto.getTipoChavePix().trim());
+        if (dto.getBanco() != null) usuario.setBanco(dto.getBanco().trim());
     }
 }

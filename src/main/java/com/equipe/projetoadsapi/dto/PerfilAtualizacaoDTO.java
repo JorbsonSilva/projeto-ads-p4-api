@@ -68,6 +68,9 @@ public class PerfilAtualizacaoDTO {
     @Schema(description = "Indica se oferece mentoria presencial", example = "true")
     private Boolean oferecePresencial;
 
+    @Schema(description = "Indica se oferece mentoria online", example = "true")
+    private Boolean aceitaOnline;
+
     @Schema(description = "Bairro ou região de atendimento presencial", example = "Bessa / Manaíra")
     private String regiaoAtendimento;
 

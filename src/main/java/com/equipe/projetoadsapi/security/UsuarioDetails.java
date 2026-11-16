@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.security;
 
 import com.equipe.projetoadsapi.model.Usuario;
+import com.equipe.projetoadsapi.model.PapelUsuario;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,11 +22,15 @@ public class UsuarioDetails implements UserDetails {
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UsuarioDetails(Usuario usuario) {
+        this(usuario, usuario.getPapel());
+    }
+
+    public UsuarioDetails(Usuario usuario, PapelUsuario papelAtivo) {
         this.id = usuario.getId();
         this.email = usuario.getEmail();
         this.senha = usuario.getSenha();
         this.emailVerificado = Boolean.TRUE.equals(usuario.getEmailVerificado());
-        String papelNome = usuario.getPapel() != null ? usuario.getPapel().name() : "ROLE_ALUNO";
+        String papelNome = papelAtivo != null ? papelAtivo.name() : "ROLE_ALUNO";
         this.authorities = List.of(new SimpleGrantedAuthority(papelNome));
     }
 
