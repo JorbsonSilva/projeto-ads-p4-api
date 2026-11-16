@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.dto;
 
 import com.equipe.projetoadsapi.model.Aptidao;
+import com.equipe.projetoadsapi.model.Avaliacao;
 import com.equipe.projetoadsapi.model.Disponibilidade;
 import com.equipe.projetoadsapi.model.Usuario;
 import lombok.AllArgsConstructor;
@@ -9,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,11 +36,26 @@ public class PerfilProfessorPublicoDTO {
     private String regiaoAtendimento;
     private Double notaMedia;
     private Integer totalAvaliacoes;
+    private Integer totalComentarios;
     private String bioProfessor;
     private BigDecimal precoHoraOnline;
     private BigDecimal precoHoraPresencial;
     private List<AptidaoDTO> aptidoes;
     private List<DisponibilidadeDTO> disponibilidades;
+    private List<AvaliacaoDTO> avaliacoesRecentes;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AvaliacaoDTO {
+        private Long id;
+        private String alunoNome;
+        private String alunoFoto;
+        private Integer nota;
+        private String comentario;
+        private Instant data;
+    }
 
     @Data
     @Builder
@@ -64,7 +81,10 @@ public class PerfilProfessorPublicoDTO {
     public static PerfilProfessorPublicoDTO fromEntities(
             Usuario usuario,
             List<Aptidao> aptidoes,
-            List<Disponibilidade> disponibilidades
+            List<Disponibilidade> disponibilidades,
+            List<Avaliacao> avaliacoesRecentes,
+            long totalAvaliacoes,
+            long totalComentarios
     ) {
         List<AptidaoDTO> aptidoesDTO = aptidoes == null
                 ? List.of()
@@ -92,6 +112,23 @@ public class PerfilProfessorPublicoDTO {
                                 .build())
                         .collect(Collectors.toList());
 
+        List<AvaliacaoDTO> avaliacoesRecentesDTO = avaliacoesRecentes == null
+                ? List.of()
+                : avaliacoesRecentes.stream()
+                        .map(avaliacao -> AvaliacaoDTO.builder()
+                                .id(avaliacao.getId())
+                                .alunoNome(avaliacao.getAvaliador() != null
+                                        ? avaliacao.getAvaliador().getNome()
+                                        : null)
+                                .alunoFoto(avaliacao.getAvaliador() != null
+                                        ? avaliacao.getAvaliador().getFotoUrl()
+                                        : null)
+                                .nota(avaliacao.getNota())
+                                .comentario(avaliacao.getComentario())
+                                .data(avaliacao.getCriadaEm())
+                                .build())
+                        .collect(Collectors.toList());
+
         return PerfilProfessorPublicoDTO.builder()
                 .id(usuario.getId())
                 .nome(usuario.getNome())
@@ -104,12 +141,14 @@ public class PerfilProfessorPublicoDTO {
                 .estado(usuario.getEstado())
                 .regiaoAtendimento(usuario.getRegiaoAtendimento())
                 .notaMedia(usuario.getNotaMedia())
-                .totalAvaliacoes(usuario.getTotalAvaliacoes())
+                .totalAvaliacoes(Math.toIntExact(totalAvaliacoes))
+                .totalComentarios(Math.toIntExact(totalComentarios))
                 .bioProfessor(usuario.getBioProfessor())
                 .precoHoraOnline(usuario.getPrecoHoraOnline())
                 .precoHoraPresencial(usuario.getPrecoHoraPresencial())
                 .aptidoes(aptidoesDTO)
                 .disponibilidades(disponibilidadesDTO)
+                .avaliacoesRecentes(avaliacoesRecentesDTO)
                 .build();
     }
 }

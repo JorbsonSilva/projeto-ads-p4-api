@@ -3,11 +3,13 @@ package com.equipe.projetoadsapi.controller;
 import com.equipe.projetoadsapi.dto.*;
 import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
 import com.equipe.projetoadsapi.model.Aptidao;
+import com.equipe.projetoadsapi.model.Avaliacao;
 import com.equipe.projetoadsapi.model.Disponibilidade;
 import com.equipe.projetoadsapi.model.Interesse;
 import com.equipe.projetoadsapi.model.PapelUsuario;
 import com.equipe.projetoadsapi.model.Usuario;
 import com.equipe.projetoadsapi.repository.AptidaoRepository;
+import com.equipe.projetoadsapi.repository.AvaliacaoRepository;
 import com.equipe.projetoadsapi.repository.DisponibilidadeRepository;
 import com.equipe.projetoadsapi.repository.InteresseRepository;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
@@ -17,6 +19,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -51,6 +54,9 @@ public class UsuarioController {
 
     @Autowired
     private DisponibilidadeRepository disponibilidadeRepository;
+
+    @Autowired
+    private AvaliacaoRepository avaliacaoRepository;
 
     @Operation(summary = "Cadastro de novo usuário", description = "Inicia o fluxo de onboarding com envio de código de 6 dígitos por e-mail.")
     @PostMapping("/cadastro")
@@ -137,8 +143,15 @@ public class UsuarioController {
 
         List<Aptidao> aptidoes = aptidaoRepository.findByUsuarioId(id);
         List<Disponibilidade> disponibilidades = disponibilidadeRepository.findByUsuarioId(id);
+        List<Avaliacao> avaliacoesRecentes =
+                avaliacaoRepository.findRecentCommentsByAvaliadoId(id, PageRequest.of(0, 5));
         PerfilProfessorPublicoDTO dto = PerfilProfessorPublicoDTO.fromEntities(
-                professor, aptidoes, disponibilidades
+                professor,
+                aptidoes,
+                disponibilidades,
+                avaliacoesRecentes,
+                avaliacaoRepository.countByAvaliadoId(id),
+                avaliacaoRepository.countCommentsByAvaliadoId(id)
         );
         return ResponseEntity.ok(ApiResponse.ok(dto, "Perfil público do professor recuperado com sucesso"));
     }

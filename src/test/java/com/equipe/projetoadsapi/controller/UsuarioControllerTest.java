@@ -2,6 +2,7 @@ package com.equipe.projetoadsapi.controller;
 
 import com.equipe.projetoadsapi.model.*;
 import com.equipe.projetoadsapi.repository.AptidaoRepository;
+import com.equipe.projetoadsapi.repository.AvaliacaoRepository;
 import com.equipe.projetoadsapi.repository.DisponibilidadeRepository;
 import com.equipe.projetoadsapi.repository.InteresseRepository;
 import com.equipe.projetoadsapi.dto.AlunoAtendidoDTO;
@@ -69,6 +70,9 @@ public class UsuarioControllerTest {
 
     @MockBean
     private DisponibilidadeRepository disponibilidadeRepository;
+
+    @MockBean
+    private AvaliacaoRepository avaliacaoRepository;
 
     @MockBean
     private JwtTokenProvider tokenProvider;
@@ -146,9 +150,28 @@ public class UsuarioControllerTest {
         aptidao.setNivelDominio("Avançado");
         aptidao.setPrecoHora(new BigDecimal("75.00"));
 
+        Disponibilidade disponibilidade = new Disponibilidade();
+        disponibilidade.setDiaSemana("SEGUNDA");
+        disponibilidade.setHoraInicio(LocalTime.of(9, 0));
+        disponibilidade.setHoraFim(LocalTime.of(17, 0));
+
+        Usuario aluno = new Usuario();
+        aluno.setNome("João Aluno");
+        aluno.setFotoUrl(null);
+
+        Avaliacao avaliacao = new Avaliacao();
+        avaliacao.setId(101L);
+        avaliacao.setAvaliador(aluno);
+        avaliacao.setNota(5);
+        avaliacao.setComentario("Explicação clara e objetiva.");
+
         when(usuarioService.buscarPorId(3L)).thenReturn(professor);
         when(aptidaoRepository.findByUsuarioId(3L)).thenReturn(List.of(aptidao));
-        when(disponibilidadeRepository.findByUsuarioId(3L)).thenReturn(List.of());
+        when(disponibilidadeRepository.findByUsuarioId(3L)).thenReturn(List.of(disponibilidade));
+        when(avaliacaoRepository.findRecentCommentsByAvaliadoId(eq(3L), any()))
+                .thenReturn(List.of(avaliacao));
+        when(avaliacaoRepository.countByAvaliadoId(3L)).thenReturn(1L);
+        when(avaliacaoRepository.countCommentsByAvaliadoId(3L)).thenReturn(1L);
 
         mockMvc.perform(get("/api/v1/usuarios/professores/3/perfil-publico"))
                 .andExpect(status().isOk())
@@ -158,6 +181,15 @@ public class UsuarioControllerTest {
                 .andExpect(jsonPath("$.data.bioProfessor").value("Aulas de matemática"))
                 .andExpect(jsonPath("$.data.precoHoraOnline").value(75.0))
                 .andExpect(jsonPath("$.data.aptidoes[0].nome").value("Matemática"))
+                .andExpect(jsonPath("$.data.disponibilidades[0].diaSemana").value("SEGUNDA"))
+                .andExpect(jsonPath("$.data.disponibilidades[0].horaInicio").value("09:00"))
+                .andExpect(jsonPath("$.data.disponibilidades[0].horaFim").value("17:00"))
+                .andExpect(jsonPath("$.data.totalAvaliacoes").value(1))
+                .andExpect(jsonPath("$.data.totalComentarios").value(1))
+                .andExpect(jsonPath("$.data.avaliacoesRecentes[0].alunoNome").value("João Aluno"))
+                .andExpect(jsonPath("$.data.avaliacoesRecentes[0].nota").value(5))
+                .andExpect(jsonPath("$.data.avaliacoesRecentes[0].comentario")
+                        .value("Explicação clara e objetiva."))
                 .andExpect(jsonPath("$.data.email").doesNotExist())
                 .andExpect(jsonPath("$.data.cpf").doesNotExist())
                 .andExpect(jsonPath("$.data.telefone").doesNotExist());
