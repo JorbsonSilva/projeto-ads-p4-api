@@ -53,6 +53,9 @@ public class ResumoFinanceiroDTO {
     @Builder.Default
     private Integer aulasPendentesMes = 0;
 
+    @Builder.Default
+    private List<EvolucaoSemanalFinanceiraDTO> graficoEvolucao = new ArrayList<>();
+
     private String chavePixCadastrada;
 
     private TipoChavePix tipoChavePixCadastrada;

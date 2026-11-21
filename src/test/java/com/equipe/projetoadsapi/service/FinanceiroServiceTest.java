@@ -285,6 +285,13 @@ public class FinanceiroServiceTest {
         assertEquals(2, resumo.getAulasRealizadasMes());
         assertEquals(1, resumo.getAlunosAtendidosMes());
         assertEquals(1, resumo.getAulasPendentesMes());
+        assertEquals(5, resumo.getGraficoEvolucao().size());
+        assertEquals("1-7", resumo.getGraficoEvolucao().get(0).getLabel());
+        assertEquals(new BigDecimal("100.00"), resumo.getGraficoEvolucao().get(0).getValor());
+        assertEquals(1, resumo.getGraficoEvolucao().get(0).getAulas());
+        assertEquals("8-14", resumo.getGraficoEvolucao().get(1).getLabel());
+        assertEquals(new BigDecimal("150.00"), resumo.getGraficoEvolucao().get(1).getValor());
+        assertEquals(1, resumo.getGraficoEvolucao().get(1).getAulas());
         assertEquals("carlos@orienta.com.br", resumo.getChavePixCadastrada());
         assertEquals(TipoChavePix.EMAIL, resumo.getTipoChavePixCadastrada());
         assertFalse(resumo.getSaqueBloqueado());

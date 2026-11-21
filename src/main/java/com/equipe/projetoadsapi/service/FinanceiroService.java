@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.service;
 
 import com.equipe.projetoadsapi.dto.ResumoFinanceiroDTO;
+import com.equipe.projetoadsapi.dto.EvolucaoSemanalFinanceiraDTO;
 import com.equipe.projetoadsapi.dto.SaqueResponseDTO;
 import com.equipe.projetoadsapi.dto.TransacaoFinanceiraDTO;
 import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
@@ -72,16 +73,26 @@ public class FinanceiroService {
         YearMonth mesAtual = YearMonth.now();
         List<Agendamento> aulasMes = agendamentoRepository.findByProfessorIdAndDataBetween(
                 professorId, mesAtual.atDay(1), mesAtual.atEndOfMonth());
+        BigDecimal[] ganhosPorSemana = new BigDecimal[5];
+        Arrays.fill(ganhosPorSemana, BigDecimal.ZERO);
+        int[] aulasPorSemana = new int[5];
         BigDecimal ganhosMes = BigDecimal.ZERO;
         int aulasRealizadasMes = 0;
         int aulasPendentesMes = 0;
         Set<Long> alunosAtendidosMes = new HashSet<>();
+        List<EvolucaoSemanalFinanceiraDTO> graficoEvolucao = new java.util.ArrayList<>();
         if (aulasMes != null) {
             for (Agendamento aula : aulasMes) {
                 if (aula.getStatus() == StatusAgendamento.REALIZADA) {
                     aulasRealizadasMes++;
                     if (aula.getValorAplicado() != null) {
                         ganhosMes = ganhosMes.add(aula.getValorAplicado());
+                    }
+                    if (aula.getData() != null) {
+                        int semana = Math.min(4, (aula.getData().getDayOfMonth() - 1) / 7);
+                        ganhosPorSemana[semana] = ganhosPorSemana[semana].add(
+                                aula.getValorAplicado() != null ? aula.getValorAplicado() : BigDecimal.ZERO);
+                        aulasPorSemana[semana]++;
                     }
                     if (aula.getAluno() != null && aula.getAluno().getId() != null) {
                         alunosAtendidosMes.add(aula.getAluno().getId());
@@ -93,6 +104,16 @@ public class FinanceiroService {
                     aulasPendentesMes++;
                 }
             }
+        }
+        int quantidadeSemanas = (mesAtual.lengthOfMonth() + 6) / 7;
+        for (int semana = 0; semana < quantidadeSemanas; semana++) {
+            int inicio = semana * 7 + 1;
+            int fim = Math.min(inicio + 6, mesAtual.lengthOfMonth());
+            graficoEvolucao.add(EvolucaoSemanalFinanceiraDTO.builder()
+                    .label(inicio + "-" + fim)
+                    .valor(ganhosPorSemana[semana])
+                    .aulas(aulasPorSemana[semana])
+                    .build());
         }
 
         // Identificação da chave PIX cadastrada ou sugerida
@@ -151,6 +172,7 @@ public class FinanceiroService {
                 .aulasRealizadasMes(aulasRealizadasMes)
                 .alunosAtendidosMes(alunosAtendidosMes.size())
                 .aulasPendentesMes(aulasPendentesMes)
+                .graficoEvolucao(graficoEvolucao)
                 .chavePixCadastrada(chavePix)
                 .tipoChavePixCadastrada(tipoChavePix)
                 .saqueBloqueado(saqueBloqueado)
