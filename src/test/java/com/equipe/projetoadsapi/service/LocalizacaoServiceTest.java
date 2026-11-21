@@ -66,6 +66,21 @@ public class LocalizacaoServiceTest {
     }
 
     @Test
+    @DisplayName("Resolve bairro selecionado para coordenadas aproximadas e rejeita regiões não cadastradas")
+    void deveResolverPontoAproximadoDaRegiao() {
+        LocalizacaoService.PontoAproximado ponto = localizacaoService.resolverPontoAproximado(
+                "João Pessoa", "PB", "Tambaú"
+        );
+
+        assertEquals("João Pessoa", ponto.cidade());
+        assertEquals("Tambaú", ponto.regiao());
+        assertEquals(-7.1160, ponto.latitude());
+        assertEquals(-34.8240, ponto.longitude());
+        assertThrows(IllegalArgumentException.class, () ->
+                localizacaoService.resolverPontoAproximado("João Pessoa", "PB", "Endereço desconhecido"));
+    }
+
+    @Test
     @DisplayName("[BACK-017] Raio de Atendimento: Deve validar corretamente se ponto alvo está dentro ou fora do raio")
     void deveValidarSePontoEstaDentroOuForaDoRaio() {
         double latOrigem = -8.063169;

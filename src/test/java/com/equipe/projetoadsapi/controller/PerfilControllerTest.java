@@ -9,6 +9,7 @@ import com.equipe.projetoadsapi.security.CustomUserDetailsService;
 import com.equipe.projetoadsapi.security.JwtTokenProvider;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
 import com.equipe.projetoadsapi.security.TokenBlacklistService;
+import com.equipe.projetoadsapi.service.LocalizacaoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +71,9 @@ public class PerfilControllerTest {
 
     @MockBean
     private ResourceOwnershipService ownershipService;
+
+    @MockBean
+    private LocalizacaoService localizacaoService;
 
     @MockBean
     private JwtTokenProvider tokenProvider;
@@ -231,6 +236,8 @@ public class PerfilControllerTest {
         PerfilAtualizacaoDTO dto = PerfilAtualizacaoDTO.builder()
                 .nome("Prof. Carlos Mendes M.Sc.")
                 .bio("Nova biografia docente")
+                .cidade("João Pessoa")
+                .estado("PB")
                 .oferecePresencial(true)
                 .regiaoAtendimento("Tambaú")
                 .raioAtendimentoKm(20)
@@ -244,6 +251,10 @@ public class PerfilControllerTest {
 
         when(usuarioRepository.findById(2L)).thenReturn(Optional.of(professor));
         when(usuarioRepository.save(any(Usuario.class))).thenReturn(professor);
+        when(localizacaoService.resolverPontoAproximado("João Pessoa", "PB", "Tambaú"))
+                .thenReturn(new LocalizacaoService.PontoAproximado(
+                        "João Pessoa", "PB", "Tambaú", -7.1160, -34.8240
+                ));
         when(saberRepository.findByNome(anyString())).thenReturn(Optional.of(saberMat));
         when(aptidaoRepository.findByUsuarioId(2L)).thenReturn(List.of());
         when(disponibilidadeRepository.findByUsuarioId(2L)).thenReturn(List.of());
@@ -253,9 +264,13 @@ public class PerfilControllerTest {
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.regiaoAtendimento").value("Tambaú"))
                 .andExpect(jsonPath("$.message").value("Perfil do professor atualizado com sucesso!"));
 
         verify(ownershipService, times(1)).validarAcessoDocente(2L);
+        verify(localizacaoService).resolverPontoAproximado("João Pessoa", "PB", "Tambaú");
+        assertEquals(-7.1160, professor.getLatitudeAproximada());
+        assertEquals(-34.8240, professor.getLongitudeAproximada());
         verify(usuarioRepository, times(1)).save(any(Usuario.class));
     }
 }

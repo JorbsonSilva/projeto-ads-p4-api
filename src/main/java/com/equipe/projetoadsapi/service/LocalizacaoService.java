@@ -4,6 +4,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * SERVIÇO DE GEOLOCALIZAÇÃO E CÁLCULO DE DISTÂNCIA (Fórmula de Haversine)
@@ -24,6 +27,71 @@ public class LocalizacaoService {
 
     /** Limite máximo de raio admitido pelo servidor (Decisão 17) */
     public static final int RAIO_MAXIMO_KM = 50;
+
+    private static final Map<String, PontoAproximado> PONTOS_PRESENCIAIS = Map.ofEntries(
+            ponto("Caruaru", "PE", "Centro", -8.2839, -35.9761),
+            ponto("Caruaru", "PE", "Maurício de Nassau", -8.2750, -35.9730),
+            ponto("Caruaru", "PE", "Indianópolis", -8.3030, -35.9670),
+            ponto("Caruaru", "PE", "Boa Vista", -8.2900, -35.9630),
+            ponto("Caruaru", "PE", "Salgado", -8.3000, -35.9800),
+            ponto("Recife", "PE", "Boa Viagem", -8.1189, -34.8988),
+            ponto("Recife", "PE", "Casa Forte", -8.0267, -34.9197),
+            ponto("Recife", "PE", "Graças", -8.0416, -34.8974),
+            ponto("Recife", "PE", "Madalena", -8.0560, -34.9110),
+            ponto("Recife", "PE", "Várzea", -8.0539, -34.9511),
+            ponto("Campina Grande", "PB", "Centro", -7.2307, -35.8817),
+            ponto("Campina Grande", "PB", "Catolé", -7.2390, -35.8760),
+            ponto("Campina Grande", "PB", "Bodocongó", -7.2180, -35.9100),
+            ponto("Campina Grande", "PB", "Liberdade", -7.2390, -35.8910),
+            ponto("Campina Grande", "PB", "Prata", -7.2240, -35.8900),
+            ponto("João Pessoa", "PB", "Centro", -7.1195, -34.8450),
+            ponto("João Pessoa", "PB", "Manaíra", -7.1040, -34.8340),
+            ponto("João Pessoa", "PB", "Bessa", -7.0740, -34.8340),
+            ponto("João Pessoa", "PB", "Tambaú", -7.1160, -34.8240),
+            ponto("João Pessoa", "PB", "Bancários", -7.1550, -34.8300)
+    );
+
+    public record PontoAproximado(
+            String cidade,
+            String estado,
+            String regiao,
+            double latitude,
+            double longitude
+    ) {}
+
+    private static Map.Entry<String, PontoAproximado> ponto(
+            String cidade, String estado, String regiao, double latitude, double longitude
+    ) {
+        return Map.entry(
+                chave(cidade, estado, regiao),
+                new PontoAproximado(cidade, estado, regiao, latitude, longitude)
+        );
+    }
+
+    private static String chave(String cidade, String estado, String regiao) {
+        return normalizarLocalidade(cidade) + "|" + normalizarLocalidade(estado) + "|"
+                + normalizarLocalidade(regiao);
+    }
+
+    private static String normalizarLocalidade(String valor) {
+        if (valor == null) return "";
+        return Normalizer.normalize(valor.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Resolve cidade e bairro para um ponto público aproximado, sem armazenar endereço residencial.
+     */
+    public PontoAproximado resolverPontoAproximado(String cidade, String estado, String regiao) {
+        PontoAproximado ponto = PONTOS_PRESENCIAIS.get(chave(cidade, estado, regiao));
+        if (ponto == null) {
+            throw new IllegalArgumentException(
+                    "Selecione uma cidade e uma região disponíveis para atendimento presencial."
+            );
+        }
+        return ponto;
+    }
 
     /**
      * Calcula a distância em quilômetros entre dois pontos geográficos

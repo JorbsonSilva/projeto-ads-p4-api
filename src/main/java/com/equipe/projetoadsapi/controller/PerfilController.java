@@ -7,6 +7,7 @@ import com.equipe.projetoadsapi.exception.RecursoNaoEncontradoException;
 import com.equipe.projetoadsapi.model.*;
 import com.equipe.projetoadsapi.repository.*;
 import com.equipe.projetoadsapi.security.ResourceOwnershipService;
+import com.equipe.projetoadsapi.service.LocalizacaoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,6 +54,9 @@ public class PerfilController {
 
     @Autowired
     private ResourceOwnershipService ownershipService;
+
+    @Autowired
+    private LocalizacaoService localizacaoService;
 
     @Operation(summary = "Obter perfil unificado por ID", description = "Retorna o perfil completo unificado com saberes e disponibilidades.")
     @PreAuthorize("@resourceOwnershipService.isDonoDoRecurso(#id)")
@@ -183,6 +187,21 @@ public class PerfilController {
         }
         if (dto.getRaioAtendimentoKm() != null) {
             usuario.setRaioAtendimentoKm(dto.getRaioAtendimentoKm());
+        }
+        if (Boolean.TRUE.equals(dto.getOferecePresencial())) {
+            LocalizacaoService.PontoAproximado ponto = localizacaoService.resolverPontoAproximado(
+                    usuario.getCidade(),
+                    usuario.getEstado(),
+                    usuario.getRegiaoAtendimento()
+            );
+            usuario.setCidade(ponto.cidade());
+            usuario.setEstado(ponto.estado());
+            usuario.setRegiaoAtendimento(ponto.regiao());
+            usuario.setLatitudeAproximada(ponto.latitude());
+            usuario.setLongitudeAproximada(ponto.longitude());
+        } else if (Boolean.FALSE.equals(dto.getOferecePresencial())) {
+            usuario.setLatitudeAproximada(null);
+            usuario.setLongitudeAproximada(null);
         }
         usuarioRepository.save(usuario);
 
