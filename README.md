@@ -38,6 +38,12 @@ O `spring-boot:run` ativa o perfil `dev` por padrão, que aplica uma migração 
 
 Contas sintéticas locais usam o e-mail `demo.usuario.001@orienta.test` até `demo.usuario.500@orienta.test` e a senha de desenvolvimento `DemoLocal@2026!`. Use essas credenciais somente no ambiente local.
 
+Contas dedicadas para capturas de tela e demonstrações (criadas junto com o perfil `dev`):
+- **Aluno**: `demo.aluno@orienta.test` / `DemoLocal@2026!`
+- **Professor**: `demo.professor@orienta.test` / `DemoLocal@2026!`
+
+Essas contas têm histórico de aulas concluídas, confirmadas, pendentes, recusadas e remarcadas, além de conversas vinculadas a agendamentos com as contas sintéticas. Cada clone cria os dados no próprio banco local; essas credenciais não existem em produção nem em uma instância remota compartilhada.
+
 ## 👥 Contas Prontas para a Apresentação
 - **Aluno**: `aluno.banca@orienta.edu.br` / `Senha@123`
 - **Professor 1**: `prof.carlos@orienta.edu.br` / `Senha@123` (Banco de Dados, R$ 70,00/h, Centro)
