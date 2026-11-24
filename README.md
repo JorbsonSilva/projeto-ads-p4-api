@@ -48,3 +48,34 @@ Essas contas têm histórico de aulas concluídas, confirmadas, pendentes, recus
 - **Aluno**: `aluno.banca@orienta.edu.br` / `Senha@123`
 - **Professor 1**: `prof.carlos@orienta.edu.br` / `Senha@123` (Banco de Dados, R$ 70,00/h, Centro)
 - **Professor 2**: `profa.juliana@orienta.edu.br` / `Senha@123` (Cálculo I, R$ 55,00/h, Zona Sul)
+
+## Tutor RAG interno · ML-004B.1
+
+Os DTOs do tutor ficam em `com.equipe.projetoadsapi.tutor.dto` e usam o envelope `ApiResponse<T>`.
+A regra de segurança exige autenticação em `/api/v1/tutor/**`. Esta etapa disponibiliza
+a emissão da credencial interna para o futuro cliente Spring, ainda sem rotas de conversa.
+
+| Variável de ambiente | Configuração |
+|---|---|
+| `ORIENTA_RAG_ENABLED` | `false` por padrão. Com `true`, valida a configuração antes de registrar o emissor. |
+| `ORIENTA_RAG_BASE_URL` | `http://127.0.0.1:8000` por padrão. Use HTTPS fora de loopback. |
+| `ORIENTA_RAG_ISSUER` e `ORIENTA_RAG_AUDIENCE` | `orienta-spring` e `orienta-rag`, conforme o contrato Python. |
+| `ORIENTA_RAG_TOKEN_TTL` | `60s`, conforme o contrato desta etapa. |
+| `ORIENTA_RAG_INTERNAL_SECRET` | Obrigatório quando ativo. Gere pelo menos 32 bytes UTF-8 para uso exclusivo do RAG e configure o mesmo valor em `RAG_INTERNAL_JWT_SECRET` no Python. |
+| `ORIENTA_RAG_SUBJECT_SECRET` | Obrigatório quando ativo. Use outro segredo de pelo menos 32 bytes UTF-8, mantido apenas no Spring. |
+| `ORIENTA_RAG_CONNECT_TIMEOUT` e `ORIENTA_RAG_RESPONSE_TIMEOUT` | `500ms` e `3s`. Reservados para o futuro cliente HTTP. |
+
+O emissor usa o ID do `UsuarioDetails` autenticado para derivar via HMAC um sujeito
+pseudônimo estável. O JWT interno usa HS256, audiência como string e escopo
+`rag:internal`. A troca do segredo de pseudonimização muda o sujeito e invalida o acesso
+a conversas associadas ao valor anterior. Mantenha ambos os segredos em variáveis
+protegidas ou em um gerenciador de segredos e use valores distintos do segredo JWT
+público. O Bearer recebido do aplicativo fica no Spring.
+
+Para executar também o teste de interoperabilidade sem servidores, informe o
+interpretador de um ambiente Python com PyJWT. Por padrão, o teste encontra o
+protótipo em `../projeto-ads-p4-rag`. Use `ORIENTA_RAG_TEST_PROJECT` para outro caminho.
+
+```sh
+ORIENTA_RAG_TEST_PYTHON=/caminho/venv/bin/python ./mvnw -Dtest=RagInternalTokenIssuerTest test
+```
