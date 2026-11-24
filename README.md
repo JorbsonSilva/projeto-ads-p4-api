@@ -79,3 +79,44 @@ protótipo em `../projeto-ads-p4-rag`. Use `ORIENTA_RAG_TEST_PROJECT` para outro
 ```sh
 ORIENTA_RAG_TEST_PYTHON=/caminho/venv/bin/python ./mvnw -Dtest=RagInternalTokenIssuerTest test
 ```
+
+### Cliente HTTP interno · ML-004B.2
+
+Com a integração habilitada, `RagHttpClient` usa `RestClient` com um transporte
+Apache HttpClient dedicado para criar e encerrar conversas, enviar mensagens e
+consultar liveness e readiness em `/internal/v1`. Todas as operações exigem um
+principal autenticado no Spring, inclusive as consultas de saúde. A resposta
+preserva o modo do Python e distingue `answered` de `no_evidence`. O modo
+`simulated` serve à integração e aos testes.
+
+O cliente usa a URL e os timeouts da configuração acima. O transporte desativa
+retries, redirecionamentos e cookies. O timeout de conexão e de obtenção de
+conexão do pool começa em `500ms`. O timeout de espera pela resposta e de
+inatividade da leitura começa em `3s`. O limite local é
+`ORIENTA_RAG_MAX_CONCURRENT_REQUESTS=4` por processo. Chamadas além do limite
+falham sem fila no cliente. Em múltiplas instâncias, o limite precisa ser ajustado
+em relação à capacidade do Python.
+
+Cada chamada emite o Bearer interno com o emissor da ML-004B.1. O corpo da
+mensagem contém somente `messageId` e `question`. Um reenvio explícito dentro da
+mesma conversa deve usar o mesmo UUID e conteúdo. Um timeout pode ocorrer após o
+Python ter processado a operação.
+
+As falhas são retornadas ao chamador Java como `RagClientException`, com código
+tipado e indicação de reenvio. Elas distinguem autenticação interna, conversa
+inexistente, conflito, limites, indisponibilidade, timeout, erro de conexão e
+resposta inválida. O cliente descarta a mensagem bruta e valida IDs, estados,
+evidências e campos obrigatórios. Os DTOs internos permanecem na camada de
+integração. O controlador público, o mapeamento em `ApiResponse<T>` e eventual
+contingência ficam para a próxima etapa.
+
+Para executar os testes do cliente, incluindo transporte local e
+interoperabilidade com o verificador Python, use o seguinte comando. Os dois
+repositórios devem estar lado a lado no workspace. Os testes usam mocks e
+servidores de loopback e dispensam pesos ou credenciais de provedores externos.
+
+```sh
+ORIENTA_RAG_TEST_PROJECT="$(cd ../projeto-ads-p4-rag && pwd)" \
+ORIENTA_RAG_TEST_PYTHON=/caminho/venv/bin/python \
+./mvnw -Dtest=RagHttpClientTest,RagHttpClientTransportTest,RagInternalTokenIssuerTest test
+```
