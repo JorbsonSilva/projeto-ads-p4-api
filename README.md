@@ -120,3 +120,43 @@ ORIENTA_RAG_TEST_PROJECT="$(cd ../projeto-ads-p4-rag && pwd)" \
 ORIENTA_RAG_TEST_PYTHON=/caminho/venv/bin/python \
 ./mvnw -Dtest=RagHttpClientTest,RagHttpClientTransportTest,RagInternalTokenIssuerTest test
 ```
+
+### API pública autenticada · ML-004B.3
+
+Use o JWT de acesso do Orienta nas três rotas. O Spring identifica o usuário
+pelo principal e envia ao Python uma credencial interna separada. A API Python
+permanece restrita à rede privada.
+
+| Endpoint | Entrada | Sucesso em `ApiResponse<T>` |
+|---|---|---|
+| `POST /api/v1/tutor/conversas` | `{}` | `201`, `conversaId` e `expiraEm` |
+| `POST /api/v1/tutor/conversas/{conversaId}/mensagens` | `{"mensagemId":"<UUID>","pergunta":"Consigo trocar o horário da mentoria?"}` | `200`, IDs, `resultado`, `resposta`, `origem` e `evidencias` |
+| `DELETE /api/v1/tutor/conversas/{conversaId}` | Sem corpo | `200`, `conversaId` confirmado pelo serviço interno |
+
+`SEM_EVIDENCIA` é um resultado válido com evidências vazias. A origem
+`SIMULADO` identifica respostas do FastAPI em modo simulado. Um reenvio deve
+reutilizar `mensagemId` e o texto na mesma conversa. Conversas de outro usuário,
+encerradas, expiradas ou perdidas após reinício devolvem o mesmo `404`. A
+expiração informada na criação é inicial e o Python controla o TTL de inatividade.
+
+Erros do tutor incluem `data.codigo` e `data.reenviavel`. Um `502` indica
+falha de integração, inclusive de autenticação interna. Indisponibilidade
+retorna `503`, e timeout retorna `504`. Os erros de autenticação do
+aplicativo seguem a cadeia de segurança existente. Durante indisponibilidade,
+o aplicativo pode apresentar a triagem como ação separada. O tutor não
+dispara recomendações, cards ou contingência determinística automaticamente.
+
+O teste de integração usa MockMvc com filtros reais e inicia o FastAPI existente
+em processo separado, em uma porta efêmera de loopback. Ele envia solicitações
+HTTP reais do Spring ao Python, no modo simulado, com segredos de teste gerados
+localmente. Use um ambiente Python com `requirements-http.txt` do projeto RAG e
+um ambiente que permita sockets de loopback. Sem `ORIENTA_RAG_HTTP_TEST_PYTHON`,
+esse teste é ignorado. Com a variável definida, uma falha de inicialização é
+reportada como falha de teste.
+
+```sh
+ORIENTA_RAG_TEST_PROJECT="$(cd ../projeto-ads-p4-rag && pwd)" \
+ORIENTA_RAG_TEST_PYTHON=/caminho/venv/bin/python \
+ORIENTA_RAG_HTTP_TEST_PYTHON=/caminho/venv/bin/python \
+./mvnw test
+```
