@@ -71,6 +71,7 @@ public class SecurityConfig {
                         // 3. Health Check e Endpoints Públicos do Assistente Acadêmico IA
                         .requestMatchers("/api/v1/health", "/api/health", "/actuator/health").permitAll()
                         .requestMatchers("/api/v1/assistente/**", "/api/v1/assistant/**").permitAll()
+                        .requestMatchers("/api/v1/tutor/**").authenticated()
 
                         // 4. Documentação e Especificação OpenAPI / Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/api-docs/**", "/api/v1/swagger-ui/**", "/api/v1/swagger-ui.html", "/swagger-resources/**", "/webjars/**").permitAll()
