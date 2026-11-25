@@ -1,6 +1,6 @@
 package com.equipe.projetoadsapi.tutor.security;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "orienta.rag", name = "enabled", havingValue = "true")
+@Conditional(RagEnabledCondition.class)
 @EnableConfigurationProperties(RagIntegrationProperties.class)
 public class RagIntegrationConfiguration {
 

@@ -8,7 +8,7 @@ import java.time.Duration;
 
 @ConfigurationProperties("orienta.rag")
 public record RagIntegrationProperties(
-        @DefaultValue("false") boolean enabled,
+        @DefaultValue("true") boolean enabled,
         @DefaultValue("http://127.0.0.1:8000") URI baseUrl,
         @DefaultValue("orienta-spring") String issuer,
         @DefaultValue("orienta-rag") String audience,

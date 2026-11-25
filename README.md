@@ -57,7 +57,7 @@ a emissão da credencial interna para o futuro cliente Spring, ainda sem rotas d
 
 | Variável de ambiente | Configuração |
 |---|---|
-| `ORIENTA_RAG_ENABLED` | `false` por padrão. Com `true`, valida a configuração antes de registrar o emissor. |
+| `ORIENTA_RAG_ENABLED` | Por padrão, ativa com os dois segredos RAG configurados. Use `false` para desativar. Com `true`, a configuração é obrigatória. |
 | `ORIENTA_RAG_BASE_URL` | `http://127.0.0.1:8000` por padrão. Use HTTPS fora de loopback. |
 | `ORIENTA_RAG_ISSUER` e `ORIENTA_RAG_AUDIENCE` | `orienta-spring` e `orienta-rag`, conforme o contrato Python. |
 | `ORIENTA_RAG_TOKEN_TTL` | `60s`, conforme o contrato desta etapa. |

@@ -1,6 +1,7 @@
 package com.equipe.projetoadsapi.tutor.client;
 
 import com.equipe.projetoadsapi.tutor.security.RagIntegrationProperties;
+import com.equipe.projetoadsapi.tutor.security.RagEnabledCondition;
 import com.equipe.projetoadsapi.tutor.security.RagInternalTokenIssuer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -11,14 +12,14 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "orienta.rag", name = "enabled", havingValue = "true")
+@Conditional(RagEnabledCondition.class)
 public class RagHttpClientConfiguration {
 
     @Bean

@@ -18,6 +18,17 @@ class RagIntegrationConfigurationTest {
     }
 
     @Test
+    void ativaAutomaticamenteComOsDoisSegredos() {
+        configured().run(result -> assertThat(result).hasSingleBean(RagInternalTokenIssuer.class));
+    }
+
+    @Test
+    void flagFalseDesativaMesmoComOsSegredos() {
+        configured().withPropertyValues("orienta.rag.enabled=false")
+                .run(result -> assertThat(result).hasNotFailed().doesNotHaveBean(RagInternalTokenIssuer.class));
+    }
+
+    @Test
     void ativacaoSemCredenciaisFalha() {
         context.withPropertyValues("orienta.rag.enabled=true").run(result -> assertThat(result).hasFailed());
     }
@@ -41,8 +52,11 @@ class RagIntegrationConfigurationTest {
     }
 
     private ApplicationContextRunner enabled() {
+        return configured().withPropertyValues("orienta.rag.enabled=true");
+    }
+
+    private ApplicationContextRunner configured() {
         return context.withPropertyValues(
-                "orienta.rag.enabled=true",
                 "orienta.rag.internal-secret=" + signingSecret,
                 "orienta.rag.subject-secret=" + subjectSecret);
     }
